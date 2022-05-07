@@ -14,29 +14,37 @@ static const char normal[] = {0x1b, '[', '0', ';', '3', '9', 'm', 0};
 void logger::debug(const std::string &message, const std::string &file,
                    std::size_t line) {
   std::lock_guard<std::mutex> lock(m_mtx);
-  std::cout << "[" << blue << "DEBUG" << normal << "][NeptuneORM][" << file
-            << ":" << line << "] " << message << std::endl;
+  std::cout << blue << "["
+            << "DEBUG"
+            << "][NeptuneORM][" << file << ":" << line << "] " << normal
+            << message << std::endl;
 }
 
 void logger::info(const std::string &message, const std::string &file,
                   std::size_t line) {
   std::lock_guard<std::mutex> lock(m_mtx);
-  std::cout << "[" << green << "INFO" << normal << "][NeptuneORM][" << file
-            << ":" << line << "] " << message << std::endl;
+  std::cout << green << "["
+            << "INFO"
+            << "][NeptuneORM][" << file << ":" << line << "] " << normal
+            << message << std::endl;
 }
 
 void logger::warn(const std::string &message, const std::string &file,
                   std::size_t line) {
   std::lock_guard<std::mutex> lock(m_mtx);
-  std::cout << "[" << yellow << "WARN" << normal << "][NeptuneORM][" << file
-            << ":" << line << "] " << message << std::endl;
+  std::cout << yellow << "["
+            << "WARN"
+            << "][NeptuneORM][" << file << ":" << line << "] " << normal
+            << message << std::endl;
 }
 
 void logger::error(const std::string &message, const std::string &file,
                    std::size_t line) {
   std::lock_guard<std::mutex> lock(m_mtx);
-  std::cout << "[" << red << "ERROR" << normal << "][NeptuneORM][" << file
-            << ":" << line << "] " << message << std::endl;
+  std::cout << red << "["
+            << "ERROR"
+            << "][NeptuneORM][" << file << ":" << line << "] " << normal
+            << message << std::endl;
 }
 
 void debug(const std::string &message, const std::string &file,
