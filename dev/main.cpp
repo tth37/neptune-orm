@@ -44,7 +44,7 @@ int main() {
     user_entity new_user;
     auto conn = driver->create_connection();
 
-    new_user.age.set_value(3888);
+    new_user.age = 2;
     //  conn->insert(new_user);
 
     conn->update(new_user, conn->query().where({"id", "=", 3}));

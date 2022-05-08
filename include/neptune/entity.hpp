@@ -110,6 +110,8 @@ protected:
 
     void set_value(int32_t value);
 
+    column_int32 &operator=(int32_t value);
+
   private:
     int32_t m_value;
   };
@@ -129,6 +131,8 @@ protected:
     [[nodiscard]] uint32_t value() const;
 
     void set_value(uint32_t value);
+
+    column_primary_generated_uint32 &operator=(uint32_t value);
 
   private:
     uint32_t m_value;

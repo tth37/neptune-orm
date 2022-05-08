@@ -179,6 +179,12 @@ void neptune::entity::column_int32::set_value(int32_t value) {
   m_value = value;
 }
 
+neptune::entity::column_int32 &
+neptune::entity::column_int32::operator=(int32_t value) {
+  set_value(value);
+  return *this;
+}
+
 // =============================================================================
 // neptune::entity::column_primary_generated_uint32 ============================
 // =============================================================================
@@ -233,4 +239,10 @@ void neptune::entity::column_primary_generated_uint32::set_value(
   m_is_null = false;
   m_is_undefined = false;
   m_value = value;
+}
+
+neptune::entity::column_primary_generated_uint32 &
+neptune::entity::column_primary_generated_uint32::operator=(uint32_t value) {
+  set_value(value);
+  return *this;
 }
