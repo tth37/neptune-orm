@@ -9,68 +9,98 @@ namespace neptune {
 
 class entity {
 public:
+  /**
+   * @brief Construct a new entity object
+   * @param table_name
+   */
   explicit entity(std::string table_name);
 
   std::string get_table_name() const;
 
-  std::string get_table_meta() const;
+  std::string get_define_table_sql_mariadb() const;
 
-  std::string get_insert_sql() const;
+  std::string get_insert_sql_mariadb() const;
 
   bool check_duplicated_col_names() const;
 
   bool check_primary_key() const;
 
-  template <typename T> T get() const { return *(T *)this; }
+  virtual std::shared_ptr<entity> duplicate() const = 0;
 
 private:
   std::string m_table_name;
 
+protected:
   class column {
   public:
-    explicit column(std::string col_name, bool nullable, bool is_primary_key);
+    column(std::string col_name, bool nullable, bool is_primary);
 
-    virtual std::string get_col_name() const;
+    /**
+     * @brief Get the name of the column
+     * @return m_col_name
+     */
+    std::string get_col_name() const;
 
-    virtual std::string get_col_meta() const = 0;
+    /**
+     * @brief Get the SQL of definition of the column
+     * @return SQL string
+     */
+    virtual std::string get_define_table_col_sql_mariadb() const = 0;
 
-    virtual std::string get_insert_value() const = 0;
+    /**
+     * @brief Get the SQL of the inserted value
+     * @return SQL string
+     */
+    virtual std::string get_insert_col_value_sql_mariadb() const = 0;
 
-    virtual void set_value_from_string(const std::string &value) = 0;
+    /**
+     * @brief Set value from SQL string
+     * @param value
+     */
+    virtual void set_value_from_sql_mariadb(const std::string &value) = 0;
 
-    virtual void set_null();
+    virtual void set_null() = 0;
 
-    bool is_primary_key() const;
+    bool is_null() const;
 
-  private:
-    std::string m_col_name;
-    bool m_is_primary_key;
+    bool is_primary() const;
 
   protected:
-    bool m_nullable, m_is_null;
+    std::string m_col_name;
+    bool m_nullable, m_is_primary, m_is_null;
   };
 
+  std::vector<column *> m_cols;
+
 public:
-  std::vector<std::shared_ptr<column>> &get_cols();
+  /**
+   * @brief Get columns pointer of the entity
+   * @return m_cols
+   */
+  const std::vector<column *> &get_cols() const;
 
 protected:
-  std::vector<std::shared_ptr<column>> m_cols;
-
-  template <typename T> void define_column(const T &col);
+  /**
+   * @brief Register the column to entity
+   * @param col
+   */
+  void define_column(column &col);
 
   class column_int32 : public column {
   public:
-    explicit column_int32(const std::string &col_name, bool nullable);
+    column_int32(std::string col_name, bool nullable);
 
-    std::string get_col_meta() const override;
+    std::string get_define_table_col_sql_mariadb() const override;
 
-    std::string get_insert_value() const override;
+    std::string get_insert_col_value_sql_mariadb() const override;
 
-    void set_value_from_string(const std::string &value) override;
+    void set_value_from_sql_mariadb(const std::string &value) override;
+
+    void set_null() override;
+
+    int32_t value() const;
 
     void set_value(int32_t value);
-
-    std::tuple<bool, int32_t> value() const;
 
   private:
     int32_t m_value;
@@ -78,24 +108,24 @@ protected:
 
   class column_primary_generated_uint32 : public column {
   public:
-    explicit column_primary_generated_uint32(const std::string &col_name);
+    column_primary_generated_uint32(std::string col_name);
 
-    std::string get_col_meta() const override;
+    std::string get_define_table_col_sql_mariadb() const override;
 
-    std::string get_insert_value() const override;
+    std::string get_insert_col_value_sql_mariadb() const override;
 
-    void set_value_from_string(const std::string &value) override;
+    void set_value_from_sql_mariadb(const std::string &value) override;
 
-    std::tuple<bool, uint32_t> value() const;
+    void set_null() override;
+
+    uint32_t value() const;
+
+    void set_value(uint32_t value);
 
   private:
     uint32_t m_value;
   };
 };
-
-template <typename T> void entity::define_column(const T &col) {
-  m_cols.push_back(std::make_shared<T>(col));
-}
 
 } // namespace neptune
 
