@@ -1,6 +1,7 @@
 #ifndef NEPTUNEORM_EXCEPTION_HPP
 #define NEPTUNEORM_EXCEPTION_HPP
 
+#include "neptune/utils/logger.hpp"
 #include <exception>
 #include <string>
 
@@ -31,7 +32,7 @@ private:
 
 #define __NEPTUNE_THROW(type, message)                                         \
   {                                                                            \
-    __NEPTUNE_LOG(error, message)                                              \
+    __NEPTUNE_LOG(error, message);                                             \
     throw neptune::exception(type, message);                                   \
   }
 

@@ -21,8 +21,11 @@ neptune::mariadb_driver::mariadb_driver(std::string url, std::uint32_t port,
 std::shared_ptr<neptune::connection>
 neptune::mariadb_driver::create_connection() {
   try {
+    __NEPTUNE_LOG(info,
+                  "Creating connection to mariadb_driver [" + m_db_name + "]");
     std::shared_ptr<sql::Connection> sql_conn(m_driver->connect(
         "tcp://" + m_url + ":" + std::to_string(m_port), m_user, m_password));
+    sql_conn->setSchema(m_db_name);
     return std::make_shared<neptune::mariadb_connection>(sql_conn);
   } catch (const sql::SQLException &e) {
     __NEPTUNE_THROW(exception_type::sql_error, e.what())
@@ -78,13 +81,11 @@ void neptune::mariadb_driver::initialize() {
           "CREATE TABLE IF NOT EXISTS `" + entity->get_table_name() + "` (";
       sql_str += entity->get_table_meta();
       sql_str += ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
-      __NEPTUNE_LOG(debug, sql_str);
       stmt->execute(sql_str);
     }
 
     __NEPTUNE_LOG(info,
                   "Finished initializing mariadb_driver [" + m_db_name + "]");
-
   } catch (const sql::SQLException &e) {
     __NEPTUNE_THROW(exception_type::sql_error, e.what());
   }

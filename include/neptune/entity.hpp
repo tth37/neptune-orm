@@ -15,9 +15,13 @@ public:
 
   std::string get_table_meta() const;
 
+  std::string get_insert_sql() const;
+
   bool check_duplicated_col_names() const;
 
   bool check_primary_key() const;
+
+  template <typename T> T get() const { return *(T *)this; }
 
 private:
   std::string m_table_name;
@@ -29,6 +33,10 @@ private:
     virtual std::string get_col_name() const;
 
     virtual std::string get_col_meta() const = 0;
+
+    virtual std::string get_insert_value() const = 0;
+
+    virtual void set_value_from_string(const std::string &value) = 0;
 
     virtual void set_null();
 
@@ -42,6 +50,9 @@ private:
     bool m_nullable, m_is_null;
   };
 
+public:
+  std::vector<std::shared_ptr<column>> &get_cols();
+
 protected:
   std::vector<std::shared_ptr<column>> m_cols;
 
@@ -52,6 +63,10 @@ protected:
     explicit column_int32(const std::string &col_name, bool nullable);
 
     std::string get_col_meta() const override;
+
+    std::string get_insert_value() const override;
+
+    void set_value_from_string(const std::string &value) override;
 
     void set_value(int32_t value);
 
@@ -66,6 +81,10 @@ protected:
     explicit column_primary_generated_uint32(const std::string &col_name);
 
     std::string get_col_meta() const override;
+
+    std::string get_insert_value() const override;
+
+    void set_value_from_string(const std::string &value) override;
 
     std::tuple<bool, uint32_t> value() const;
 
