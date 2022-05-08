@@ -1,10 +1,19 @@
 #include "neptune/driver.hpp"
 #include "neptune/utils/exception.hpp"
 #include "neptune/utils/logger.hpp"
-#include "neptune/utils/typedefs.hpp"
 #include <mariadb/conncpp/Exception.hpp>
 #include <mariadb/conncpp/Statement.hpp>
 #include <utility>
+
+// =============================================================================
+// neptune::driver =============================================================
+// =============================================================================
+
+neptune::driver::driver(std::string db_name) : m_db_name(std::move(db_name)) {}
+
+// =============================================================================
+// neptune::mariadb_driver =====================================================
+// =============================================================================
 
 neptune::mariadb_driver::mariadb_driver(std::string url, std::uint32_t port,
                                         std::string user, std::string password,
@@ -41,9 +50,9 @@ void neptune::mariadb_driver::initialize() {
 
     // create schema if not exists
     sql::Statement *stmt(sql_conn->createStatement());
-    std::string sql_str("CREATE DATABASE IF NOT EXISTS ");
-    sql_str += m_db_name;
-    stmt->execute(sql_str);
+    std::string sql("CREATE DATABASE IF NOT EXISTS ");
+    sql += m_db_name;
+    stmt->execute(sql);
 
     // use schema
     sql_conn->setSchema(m_db_name);
@@ -77,11 +86,10 @@ void neptune::mariadb_driver::initialize() {
 
     // create tables
     for (auto &entity : m_entities) {
-      sql_str =
-          "CREATE TABLE IF NOT EXISTS `" + entity->get_table_name() + "` (";
-      sql_str += entity->get_table_meta();
-      sql_str += ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
-      stmt->execute(sql_str);
+      sql = "CREATE TABLE IF NOT EXISTS ";
+      sql += entity->get_define_table_sql_mariadb();
+      stmt->execute(sql);
+      __NEPTUNE_LOG(debug, "Define table SQL: " + sql);
     }
 
     __NEPTUNE_LOG(info,
@@ -99,5 +107,3 @@ void neptune::mariadb_driver::register_entity(
                           " to [" + m_db_name + "]");
   m_entities.push_back(entity);
 }
-
-neptune::driver::driver(std::string db_name) : m_db_name(std::move(db_name)) {}
