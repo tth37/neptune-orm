@@ -26,8 +26,8 @@ public:
 };
 
 int main() {
-    neptune::use_logger();
-    auto driver = neptune::use_mariadb_driver(
+    use_logger();
+    auto driver = use_mariadb_driver(
         "127.0.0.1", 3306, "root", "root", "neptune",
         std::make_shared<user_entity>());
     auto conn = driver->create_connection();
