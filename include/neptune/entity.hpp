@@ -15,17 +15,21 @@ public:
    */
   explicit entity(std::string table_name);
 
-  std::string get_table_name() const;
+  [[nodiscard]] std::string get_table_name() const;
 
-  std::string get_define_table_sql_mariadb() const;
+  [[nodiscard]] std::string get_define_table_sql_mariadb() const;
 
-  std::string get_insert_sql_mariadb() const;
+  [[nodiscard]] std::string get_insert_sql_mariadb() const;
 
-  bool check_duplicated_col_names() const;
+  [[nodiscard]] std::string get_update_sql_mariadb() const;
 
-  bool check_primary_key() const;
+  [[nodiscard]] std::string get_remove_sql_mariadb() const;
 
-  virtual std::shared_ptr<entity> duplicate() const = 0;
+  [[nodiscard]] bool check_duplicated_col_names() const;
+
+  [[nodiscard]] bool check_primary_key() const;
+
+  [[nodiscard]] virtual std::shared_ptr<entity> duplicate() const = 0;
 
 private:
   std::string m_table_name;
@@ -39,19 +43,21 @@ protected:
      * @brief Get the name of the column
      * @return m_col_name
      */
-    std::string get_col_name() const;
+    [[nodiscard]] std::string get_col_name() const;
 
     /**
      * @brief Get the SQL of definition of the column
      * @return SQL string
      */
-    virtual std::string get_define_table_col_sql_mariadb() const = 0;
+    [[nodiscard]] virtual std::string
+    get_define_table_col_sql_mariadb() const = 0;
 
     /**
      * @brief Get the SQL of the inserted value
      * @return SQL string
      */
-    virtual std::string get_insert_col_value_sql_mariadb() const = 0;
+    [[nodiscard]] virtual std::string
+    get_insert_col_value_sql_mariadb() const = 0;
 
     /**
      * @brief Set value from SQL string
@@ -61,13 +67,15 @@ protected:
 
     virtual void set_null() = 0;
 
-    bool is_null() const;
+    [[nodiscard]] bool is_null() const;
 
-    bool is_primary() const;
+    [[nodiscard]] bool is_undefined() const;
+
+    [[nodiscard]] bool is_primary() const;
 
   protected:
     std::string m_col_name;
-    bool m_nullable, m_is_primary, m_is_null;
+    bool m_nullable, m_is_primary, m_is_null, m_is_undefined;
   };
 
   std::vector<column *> m_cols;
@@ -77,7 +85,7 @@ public:
    * @brief Get columns pointer of the entity
    * @return m_cols
    */
-  const std::vector<column *> &get_cols() const;
+  [[nodiscard]] const std::vector<column *> &get_cols() const;
 
 protected:
   /**
@@ -90,15 +98,15 @@ protected:
   public:
     column_int32(std::string col_name, bool nullable);
 
-    std::string get_define_table_col_sql_mariadb() const override;
+    [[nodiscard]] std::string get_define_table_col_sql_mariadb() const override;
 
-    std::string get_insert_col_value_sql_mariadb() const override;
+    [[nodiscard]] std::string get_insert_col_value_sql_mariadb() const override;
 
     void set_value_from_sql_mariadb(const std::string &value) override;
 
     void set_null() override;
 
-    int32_t value() const;
+    [[nodiscard]] int32_t value() const;
 
     void set_value(int32_t value);
 
@@ -108,17 +116,17 @@ protected:
 
   class column_primary_generated_uint32 : public column {
   public:
-    column_primary_generated_uint32(std::string col_name);
+    explicit column_primary_generated_uint32(std::string col_name);
 
-    std::string get_define_table_col_sql_mariadb() const override;
+    [[nodiscard]] std::string get_define_table_col_sql_mariadb() const override;
 
-    std::string get_insert_col_value_sql_mariadb() const override;
+    [[nodiscard]] std::string get_insert_col_value_sql_mariadb() const override;
 
     void set_value_from_sql_mariadb(const std::string &value) override;
 
     void set_null() override;
 
-    uint32_t value() const;
+    [[nodiscard]] uint32_t value() const;
 
     void set_value(uint32_t value);
 

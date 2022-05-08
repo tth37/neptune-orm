@@ -18,33 +18,68 @@ neptune::entity::get_cols() const {
 std::string neptune::entity::get_table_name() const { return m_table_name; }
 
 std::string neptune::entity::get_define_table_sql_mariadb() const {
+  bool is_first = true;
   std::string res = "`" + m_table_name + "` (";
   for (auto &col : m_cols) {
-    res += col->get_define_table_col_sql_mariadb();
-    if (col != m_cols.back()) {
+    if (is_first) {
+      is_first = false;
+    } else {
       res += ", ";
     }
+    res += col->get_define_table_col_sql_mariadb();
   }
   res += ") ENGINE=InnoDB DEFAULT CHARSET=utf8;";
   return res;
 }
 
 std::string neptune::entity::get_insert_sql_mariadb() const {
+  bool is_first = true;
   std::string res = "INSERT INTO `" + m_table_name + "` (";
   for (auto &col : m_cols) {
-    res += "`" + col->get_col_name() + "`";
-    if (col != m_cols.back()) {
+    if (is_first) {
+      is_first = false;
+    } else {
       res += ", ";
+    }
+    if (!col->is_undefined()) {
+      res += "`" + col->get_col_name() + "`";
     }
   }
   res += ") VALUES (";
+  is_first = true;
   for (auto &col : m_cols) {
-    res += col->get_insert_col_value_sql_mariadb();
-    if (col != m_cols.back()) {
-      res += ", ";
+    if (!col->is_undefined()) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        res += ", ";
+      }
+      res += col->get_insert_col_value_sql_mariadb();
     }
   }
   res += ");";
+  return res;
+}
+
+std::string neptune::entity::get_update_sql_mariadb() const {
+  bool is_first = true;
+  std::string res = "UPDATE `" + m_table_name + "` SET ";
+  for (auto &col : m_cols) {
+    if (!col->is_undefined()) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        res += ", ";
+      }
+      res += "`" + col->get_col_name() +
+             "` = " + col->get_insert_col_value_sql_mariadb();
+    }
+  }
+  return res;
+}
+
+std::string neptune::entity::get_remove_sql_mariadb() const {
+  std::string res = "DELETE FROM `" + m_table_name + "` ";
   return res;
 }
 
@@ -79,11 +114,13 @@ void neptune::entity::define_column(neptune::entity::column &col) {
 neptune::entity::column::column(std::string col_name, bool nullable,
                                 bool is_primary)
     : m_col_name(std::move(col_name)), m_nullable(nullable),
-      m_is_primary(is_primary), m_is_null(true) {}
+      m_is_primary(is_primary), m_is_null(true), m_is_undefined(true) {}
 
 std::string neptune::entity::column::get_col_name() const { return m_col_name; }
 
 bool neptune::entity::column::is_null() const { return m_is_null; }
+
+bool neptune::entity::column::is_undefined() const { return m_is_undefined; }
 
 bool neptune::entity::column::is_primary() const { return m_is_primary; }
 
@@ -130,6 +167,7 @@ void neptune::entity::column_int32::set_value_from_sql_mariadb(
 
 void neptune::entity::column_int32::set_null() {
   m_is_null = true;
+  m_is_undefined = false;
   m_value = 0;
 }
 
@@ -137,6 +175,7 @@ int32_t neptune::entity::column_int32::value() const { return m_value; }
 
 void neptune::entity::column_int32::set_value(int32_t value) {
   m_is_null = false;
+  m_is_undefined = false;
   m_value = value;
 }
 
@@ -157,7 +196,11 @@ std::string neptune::entity::column_primary_generated_uint32::
 
 std::string neptune::entity::column_primary_generated_uint32::
     get_insert_col_value_sql_mariadb() const {
-  return std::to_string(m_value);
+  if (m_is_null) {
+    return "NULL";
+  } else {
+    return std::to_string(m_value);
+  }
 }
 
 void neptune::entity::column_primary_generated_uint32::
@@ -177,6 +220,7 @@ void neptune::entity::column_primary_generated_uint32::
 
 void neptune::entity::column_primary_generated_uint32::set_null() {
   m_is_null = true;
+  m_is_undefined = false;
   m_value = 0;
 }
 
@@ -187,5 +231,6 @@ uint32_t neptune::entity::column_primary_generated_uint32::value() const {
 void neptune::entity::column_primary_generated_uint32::set_value(
     uint32_t value) {
   m_is_null = false;
+  m_is_undefined = false;
   m_value = value;
 }

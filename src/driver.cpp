@@ -89,7 +89,6 @@ void neptune::mariadb_driver::initialize() {
       sql = "CREATE TABLE IF NOT EXISTS ";
       sql += entity->get_define_table_sql_mariadb();
       stmt->execute(sql);
-      __NEPTUNE_LOG(debug, "Define table SQL: " + sql);
     }
 
     __NEPTUNE_LOG(info,

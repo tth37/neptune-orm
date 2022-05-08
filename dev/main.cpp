@@ -22,13 +22,11 @@ public:
 class user_entity : public neptune::entity {
 public:
   column_primary_generated_uint32 id;
-  column_int32 age, usage;
+  column_int32 age;
 
-  user_entity()
-      : entity("user"), id("id"), age("age", true), usage("usage", true) {
+  user_entity() : entity("user"), id("id"), age("age", true) {
     define_column(id);
     define_column(age);
-    define_column(usage);
   }
 
   std::shared_ptr<neptune::entity> duplicate() const override {
@@ -46,10 +44,14 @@ int main() {
     user_entity new_user;
     auto conn = driver->create_connection();
 
-    new_user.age.set_value(29);
-    conn->insert(new_user);
+    new_user.age.set_value(3888);
+    //  conn->insert(new_user);
 
-    auto res = conn->select<user_entity>(conn->query());
+    conn->update(new_user, conn->query().where({"id", "=", 3}));
+    conn->remove<user_entity>(conn->query().where({"id", "=", 2}));
+
+    auto res =
+        conn->select<user_entity>(conn->query().order_by({"id", "DESC"}));
     for (int i = 0; i < res.size(); i++) {
       std::cout << res[i].id.value() << " " << res[i].age.value() << std::endl;
     }
