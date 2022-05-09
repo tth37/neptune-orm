@@ -1,93 +1,56 @@
-#include "neptune/entity.hpp"
-#include "neptune/utils/exception.hpp"
-#include "neptune/utils/logger.hpp"
 #include <iostream>
-#include <neptune/driver.hpp>
+#include <neptune/neptune.hpp>
 
-class student_entity : public neptune::entity {
-public:
-  student_entity() : entity("student"), score("score", true), id("id") {
-    define_column(score);
-    define_column(id);
-  }
+using namespace neptune;
 
-  std::shared_ptr<neptune::entity> duplicate() const override {
-    return std::make_shared<student_entity>();
-  }
-
-  column_int32 score;
-  column_primary_generated_uint32 id;
-};
-
-class user_entity : public neptune::entity {
+class user_entity : public entity {
 public:
   column_primary_generated_uint32 id;
   column_int32 age;
 
+  // set table_name to "user"
+  // set column "id" to primary generated column
+  // set column "age" to nullable int column
   user_entity() : entity("user"), id("id"), age("age", true) {
     define_column(id);
     define_column(age);
   }
 
-  std::shared_ptr<neptune::entity> duplicate() const override {
+  // implement duplicate function
+  std::shared_ptr<entity> duplicate() const override {
     return std::make_shared<user_entity>();
   }
 };
 
 int main() {
-  neptune::use_logger();
+  use_logger();
 
-  try {
-    auto driver = neptune::use_mariadb_driver(
-        "127.0.0.1", 3306, "root", "root", "zhangyuchao",
-        std::make_shared<user_entity>(), std::make_shared<student_entity>());
-    user_entity new_user;
-    auto conn = driver->create_connection();
+  // initialize mariadb_driver and register user_entity
+  auto driver =
+      use_mariadb_driver("127.0.0.1", 3306, "root", "root", "neptune_ex",
+                         std::make_shared<user_entity>());
+  auto conn = driver->create_connection();
 
-    new_user.age = 2;
-    //  conn->insert(new_user);
+  // insert new_user to database
+  user_entity new_user;
+  new_user.age = 10;
+  conn->insert(new_user);
 
-    conn->update(
-        new_user,
-        conn->query()
-            .where(neptune::or_(neptune::or_({"id", "=", 100}, {"id", "=", 9}),
-                                {"id", "=", 2}))
-            .where({"id", "<=", 10}));
-    conn->remove<user_entity>(conn->query().where({"id", "=", 2}));
+  // update new_user's age to 20
+  new_user.age = 20;
+  conn->update(new_user, conn->query().where("id", "=", 1));
 
-    auto res =
-        conn->select<user_entity>(conn->query().order_by({"id", "DESC"}));
-    for (int i = 0; i < res.size(); i++) {
-      std::cout << res[i].id.value() << " " << res[i].age.value() << std::endl;
-    }
-
-  } catch (const neptune::exception &e) {
+  // select the user with "id = 1"
+  auto res = conn->select<user_entity>(conn->query().where("id", "=", 1));
+  for (auto &user : res) {
+    std::cout << "id: " << user.id.value() << std::endl;
+    std::cout << "age: " << user.age.value() << std::endl;
   }
 
-  //  neptune::use_logger();
-  //  try {
-  //    auto driver =
-  //        neptune::use_mariadb_driver("localhost", 3306, "root", "root",
-  //        "neptu",
-  //                                    std::make_shared<student_entity>());
-  //    auto connection = driver->create_connection();
-  //    __NEPTUNE_LOG(info, "Connection created");
-  //    student_entity student;
-  //    student.score.set_value(100);
-  //    auto res = connection->select<student_entity>(connection->query());
-  //    for (auto &r : res) {
-  //      __NEPTUNE_LOG(debug, "id: " + std::to_string(r.id.value()));
-  //      __NEPTUNE_LOG(debug, "score: " + std::to_string(r.score.value()));
-  //    }
-  //  } catch (neptune::exception &e) {
-  //  }
-  system("pause");
-}
+  // delete the user with "id = 1"
+  conn->remove<user_entity>(conn->query().where("id", "=", 1));
 
-/*
- *
- *
- * conn->query().where(or_({"id", "=", 1}, and_({"id", "=", 2}, {"id", "=",
- * 3})));
- *
- */
+  system("pause");
+
+  return 0;
+}

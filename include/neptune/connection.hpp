@@ -54,7 +54,12 @@ public:
   public:
     query_selector &where(const _where_clause &where_clause);
 
-    query_selector &where(const std::shared_ptr<_where_clause_tree_node> &where_clause_root);
+    query_selector &where(const std::string &col, const std::string &op, const std::string &val);
+
+    query_selector &where(const std::string &col, const std::string &op, int32_t val);
+
+    query_selector &
+    where(const std::shared_ptr<_where_clause_tree_node> &where_clause_root);
 
     query_selector &order_by(_order_by_clause order_by_clause);
 
@@ -71,7 +76,6 @@ public:
     bool m_has_limit, m_has_offset;
     bool m_confirm_no_where;
   };
-
 
 public:
   /**
@@ -139,20 +143,44 @@ private:
 };
 
 std::shared_ptr<connection::query_selector::_where_clause_tree_node>
-or_(const std::shared_ptr<connection::query_selector::_where_clause_tree_node> &left,
-    const std::shared_ptr<connection::query_selector::_where_clause_tree_node> &right);
+or_(const std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+        &left,
+    const std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+        &right);
 
 std::shared_ptr<connection::query_selector::_where_clause_tree_node>
-or_(const std::shared_ptr<connection::query_selector::_where_clause_tree_node> &left,
+or_(const std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+        &left,
     const connection::query_selector::_where_clause &right_where_clause);
 
 std::shared_ptr<connection::query_selector::_where_clause_tree_node>
 or_(const connection::query_selector::_where_clause &left_where_clause,
-    const std::shared_ptr<connection::query_selector::_where_clause_tree_node> &right);
+    const std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+        &right);
 
 std::shared_ptr<connection::query_selector::_where_clause_tree_node>
 or_(const connection::query_selector::_where_clause &left_where_clause,
     const connection::query_selector::_where_clause &right_where_clause);
+
+std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+and_(const std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+         &left,
+     const std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+         &right);
+
+std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+and_(const std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+         &left,
+     const connection::query_selector::_where_clause &right_where_clause);
+
+std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+and_(const connection::query_selector::_where_clause &left_where_clause,
+     const std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+         &right);
+
+std::shared_ptr<connection::query_selector::_where_clause_tree_node>
+and_(const connection::query_selector::_where_clause &left_where_clause,
+     const connection::query_selector::_where_clause &right_where_clause);
 
 } // namespace neptune
 

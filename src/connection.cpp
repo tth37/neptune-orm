@@ -36,6 +36,17 @@ neptune::connection::query_selector &neptune::connection::query_selector::where(
 }
 
 neptune::connection::query_selector &neptune::connection::query_selector::where(
+    const std::string &col, const std::string &op, const std::string &val) {
+  return where({col, op, val});
+}
+
+neptune::connection::query_selector &
+neptune::connection::query_selector::where(const std::string &col,
+                                           const std::string &op, int32_t val) {
+  return where({col, op, val});
+}
+
+neptune::connection::query_selector &neptune::connection::query_selector::where(
     const std::shared_ptr<_where_clause_tree_node> &where_clause_root) {
   m_where_clause_root = where_clause_root;
   return *this;
@@ -121,6 +132,68 @@ neptune::or_(
   auto new_root = std::make_shared<
       neptune::connection::query_selector::_where_clause_tree_node>();
   new_root->op = "OR";
+  new_root->left = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->left->clause = left_where_clause;
+  new_root->right = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->right->clause = right_where_clause;
+  return new_root;
+}
+
+std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
+neptune::and_(
+    const std::shared_ptr<
+        neptune::connection::query_selector::_where_clause_tree_node> &left,
+    const std::shared_ptr<
+        neptune::connection::query_selector::_where_clause_tree_node> &right) {
+  auto new_root = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->op = "AND";
+  new_root->left = left;
+  new_root->right = right;
+  return new_root;
+}
+
+std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
+neptune::and_(
+    const std::shared_ptr<
+        neptune::connection::query_selector::_where_clause_tree_node> &left,
+    const neptune::connection::query_selector::_where_clause
+        &right_where_clause) {
+  auto new_root = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->op = "AND";
+  new_root->left = left;
+  new_root->right = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->right->clause = right_where_clause;
+  return new_root;
+}
+
+std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
+neptune::and_(
+    const neptune::connection::query_selector::_where_clause &left_where_clause,
+    const std::shared_ptr<
+        neptune::connection::query_selector::_where_clause_tree_node> &right) {
+  auto new_root = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->op = "AND";
+  new_root->left = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->left->clause = left_where_clause;
+  new_root->right = right;
+  return new_root;
+}
+
+std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
+neptune::and_(
+    const neptune::connection::query_selector::_where_clause &left_where_clause,
+    const neptune::connection::query_selector::_where_clause
+        &right_where_clause) {
+  auto new_root = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->op = "AND";
   new_root->left = std::make_shared<
       neptune::connection::query_selector::_where_clause_tree_node>();
   new_root->left->clause = left_where_clause;

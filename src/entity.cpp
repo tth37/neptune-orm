@@ -36,12 +36,12 @@ std::string neptune::entity::get_insert_sql_mariadb() const {
   bool is_first = true;
   std::string res = "INSERT INTO `" + m_table_name + "` (";
   for (auto &col : m_cols) {
-    if (is_first) {
-      is_first = false;
-    } else {
-      res += ", ";
-    }
     if (!col->is_undefined()) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        res += ", ";
+      }
       res += "`" + col->get_col_name() + "`";
     }
   }
