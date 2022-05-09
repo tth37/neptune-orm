@@ -47,7 +47,12 @@ int main() {
     new_user.age = 2;
     //  conn->insert(new_user);
 
-    conn->update(new_user, conn->query().where({"id", "=", 3}));
+    conn->update(
+        new_user,
+        conn->query()
+            .where(neptune::or_(neptune::or_({"id", "=", 100}, {"id", "=", 9}),
+                                {"id", "=", 2}))
+            .where({"id", "<=", 10}));
     conn->remove<user_entity>(conn->query().where({"id", "=", 2}));
 
     auto res =
@@ -78,3 +83,11 @@ int main() {
   //  }
   system("pause");
 }
+
+/*
+ *
+ *
+ * conn->query().where(or_({"id", "=", 1}, and_({"id", "=", 2}, {"id", "=",
+ * 3})));
+ *
+ */

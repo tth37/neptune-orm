@@ -51,8 +51,8 @@ int main() {
     
     // select the user with "id = 1"
     auto res = conn->select_one<user_entity>(conn->query().where("id", "=", 1));
-    std::cout << res->name.value() << std::endl;
-    std::cout << res->age.value() << std::endl;
+    std::cout << res.name.value() << std::endl;
+    std::cout << res.age.value() << std::endl;
     
     return 0;
 }

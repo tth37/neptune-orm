@@ -19,18 +19,25 @@ neptune::connection::query_selector neptune::connection::query() { return {}; }
 // =============================================================================
 
 neptune::connection::query_selector &neptune::connection::query_selector::where(
-    const neptune::connection::query_selector::_where_clause_str
-        &where_clause) {
-  m_where_clauses.push_back(std::move(_where_clause{
-      where_clause.col, where_clause.op, "\"" + where_clause.val + "\""}));
+    const neptune::connection::query_selector::_where_clause &where_clause) {
+  if (m_where_clause_root == nullptr) {
+    m_where_clause_root = std::make_shared<_where_clause_tree_node>();
+    m_where_clause_root->clause = where_clause;
+  } else {
+    auto new_node = std::make_shared<_where_clause_tree_node>();
+    new_node->clause = where_clause;
+    auto new_root = std::make_shared<_where_clause_tree_node>();
+    new_root->op = "AND";
+    new_root->left = m_where_clause_root;
+    new_root->right = new_node;
+    m_where_clause_root = new_root;
+  }
   return *this;
 }
 
 neptune::connection::query_selector &neptune::connection::query_selector::where(
-    const neptune::connection::query_selector::_where_clause_num
-        &where_clause) {
-  m_where_clauses.push_back(std::move(_where_clause{
-      where_clause.col, where_clause.op, std::to_string(where_clause.val)}));
+    const std::shared_ptr<_where_clause_tree_node> &where_clause_root) {
+  m_where_clause_root = where_clause_root;
   return *this;
 }
 
@@ -61,9 +68,85 @@ neptune::connection::query_selector::confirm_no_where() {
   return *this;
 }
 
+std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
+neptune::or_(
+    const std::shared_ptr<
+        neptune::connection::query_selector::_where_clause_tree_node> &left,
+    const std::shared_ptr<
+        neptune::connection::query_selector::_where_clause_tree_node> &right) {
+  auto new_root = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->op = "OR";
+  new_root->left = left;
+  new_root->right = right;
+  return new_root;
+}
+
+std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
+neptune::or_(
+    const std::shared_ptr<
+        neptune::connection::query_selector::_where_clause_tree_node> &left,
+    const neptune::connection::query_selector::_where_clause
+        &right_where_clause) {
+  auto new_root = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->op = "OR";
+  new_root->left = left;
+  new_root->right = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->right->clause = right_where_clause;
+  return new_root;
+}
+
+std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
+neptune::or_(
+    const neptune::connection::query_selector::_where_clause &left_where_clause,
+    const std::shared_ptr<
+        neptune::connection::query_selector::_where_clause_tree_node> &right) {
+  auto new_root = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->op = "OR";
+  new_root->left = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->left->clause = left_where_clause;
+  new_root->right = right;
+  return new_root;
+}
+
+std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
+neptune::or_(
+    const neptune::connection::query_selector::_where_clause &left_where_clause,
+    const neptune::connection::query_selector::_where_clause
+        &right_where_clause) {
+  auto new_root = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->op = "OR";
+  new_root->left = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->left->clause = left_where_clause;
+  new_root->right = std::make_shared<
+      neptune::connection::query_selector::_where_clause_tree_node>();
+  new_root->right->clause = right_where_clause;
+  return new_root;
+}
+
 neptune::connection::query_selector::query_selector()
-    : m_where_clauses(), m_order_by_clauses(), m_limit(0), m_offset(0),
-      m_confirm_no_where(false), m_has_limit(false), m_has_offset(false) {}
+    : m_where_clause_root(nullptr), m_order_by_clauses(), m_limit(0),
+      m_offset(0), m_confirm_no_where(false), m_has_limit(false),
+      m_has_offset(false) {}
+
+neptune::connection::query_selector::_where_clause::_where_clause(
+    std::string col_, std::string op_, std::string val_)
+    : col(std::move(col_)), op(std::move(op_)),
+      val("\"" + std::move(val_) + "\"") {}
+
+neptune::connection::query_selector::_where_clause::_where_clause(
+    std::string col_, std::string op_, int32_t val_)
+    : col(std::move(col_)), op(std::move(op_)), val(std::to_string(val_)) {}
+
+neptune::connection::query_selector::_where_clause_tree_node::
+    _where_clause_tree_node()
+    : op(), left(), right(), clause("", "", "") {}
 
 // =============================================================================
 // neptune::mariadb_connection =================================================
@@ -169,27 +252,10 @@ std::string neptune::mariadb_connection::parse_selector_query(
   }
   std::string res = "SELECT * FROM `" + e.get_table_name() + "` ";
 
-  if (!selector.m_where_clauses.empty()) {
+  if (selector.m_where_clause_root != nullptr) {
     res += " WHERE ";
-    for (std::size_t i = 0; i < selector.m_where_clauses.size(); ++i) {
-      auto &where_clause = selector.m_where_clauses[i];
-      if (i != 0) {
-        res += " AND ";
-      }
-      res += where_clause.col + " " + where_clause.op + " " + where_clause.val;
-      if (col_names.find(where_clause.col) == col_names.end()) {
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Invalid column name in query_selector: [" +
-                            where_clause.col + "]");
-      }
-      if (where_clause.op != "=" && where_clause.op != "!=" &&
-          where_clause.op != ">" && where_clause.op != "<" &&
-          where_clause.op != ">=" && where_clause.op != "<=") {
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Invalid operator in query_selector: [" +
-                            where_clause.op + "]");
-      }
-    }
+    res += _dfs_parse_selector_where_clause_tree(col_names,
+                                                 selector.m_where_clause_root);
   }
 
   if (!selector.m_order_by_clauses.empty()) {
@@ -237,27 +303,10 @@ std::string neptune::mariadb_connection::parse_selector_update_remove(
     col_names.insert(col->get_col_name());
   }
   std::string res;
-  if (!selector.m_where_clauses.empty()) {
+  if (selector.m_where_clause_root != nullptr) {
     res += " WHERE ";
-    for (std::size_t i = 0; i < selector.m_where_clauses.size(); ++i) {
-      auto &where_clause = selector.m_where_clauses[i];
-      if (i != 0) {
-        res += " AND ";
-      }
-      res += where_clause.col + " " + where_clause.op + " " + where_clause.val;
-      if (col_names.find(where_clause.col) == col_names.end()) {
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Invalid column name in query_selector: [" +
-                            where_clause.col + "]");
-      }
-      if (where_clause.op != "=" && where_clause.op != "!=" &&
-          where_clause.op != ">" && where_clause.op != "<" &&
-          where_clause.op != ">=" && where_clause.op != "<=") {
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Invalid operator in query_selector: [" +
-                            where_clause.op + "]");
-      }
-    }
+    res += _dfs_parse_selector_where_clause_tree(col_names,
+                                                 selector.m_where_clause_root);
   } else {
     if (!selector.m_confirm_no_where) {
       __NEPTUNE_LOG(warn, "You should explicitly specify confirm_no_where when "
@@ -268,5 +317,41 @@ std::string neptune::mariadb_connection::parse_selector_update_remove(
   }
   res += ";";
   __NEPTUNE_LOG(debug, "SQL update where clause: " + res);
+  return res;
+}
+
+std::string neptune::mariadb_connection::_dfs_parse_selector_where_clause_tree(
+    const std::set<std::string> &col_names,
+    const std::shared_ptr<query_selector::_where_clause_tree_node> &node) {
+  std::string res = "( ";
+  if (node->left == nullptr && node->right == nullptr) {
+    res += "`" + node->clause.col + "` " + node->clause.op + " " +
+           node->clause.val;
+    if (col_names.find(node->clause.col) == col_names.end()) {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Invalid column name in query_selector: [" +
+                          node->clause.col + "]");
+    }
+    if (node->clause.op != "=" && node->clause.op != "!=" &&
+        node->clause.op != ">" && node->clause.op != "<" &&
+        node->clause.op != ">=" && node->clause.op != "<=") {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Invalid operator in query_selector: [" +
+                          node->clause.op + "]");
+    }
+  } else {
+    res += "(";
+    res += _dfs_parse_selector_where_clause_tree(col_names, node->left);
+    res += " " + node->op + " ";
+    res += _dfs_parse_selector_where_clause_tree(col_names, node->right);
+    res += ")";
+    if (node->op != "AND" && node->op != "OR" && node->op != "and" &&
+        node->op != "or") {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Invalid logic operator in query_selector: [" + node->op +
+                          "]");
+    }
+  }
+  res += " )";
   return res;
 }
