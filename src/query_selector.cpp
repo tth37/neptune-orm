@@ -172,8 +172,8 @@ std::string neptune::query_selector::_dfs_parse_where_clause_tree(
 
 std::string neptune::query_selector::parse_where(const neptune::entity &e) {
   std::set<std::string> col_names;
-  for (const auto &col : e.get_col_names()) {
-    col_names.insert(col);
+  for (const auto &col_meta : e.get_col_metas()) {
+    col_names.insert(col_meta.name);
   }
   std::string res;
   if (m_where_clause_root != nullptr) {
@@ -194,8 +194,8 @@ std::string neptune::query_selector::parse_where(const neptune::entity &e) {
 
 std::string neptune::query_selector::parse_query(const neptune::entity &e) {
   std::set<std::string> col_names;
-  for (const auto &col : e.get_col_names()) {
-    col_names.insert(col);
+  for (const auto &col_meta : e.get_col_metas()) {
+    col_names.insert(col_meta.name);
   }
   std::string res;
 
