@@ -54,6 +54,7 @@ neptune::mariadb_connection::execute(
         if (!value.empty())
           e->set_col_data_from_string(col_meta.name, value);
       }
+      ret.push_back(e);
     }
     return ret;
   } catch (const sql::SQLException &err) {

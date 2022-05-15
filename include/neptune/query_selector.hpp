@@ -44,9 +44,9 @@ private:
       const std::shared_ptr<_where_clause_tree_node> &node,
       const std::set<std::string> &col_names);
 
-  std::string parse_where(const entity &e);
+  std::string parse_where(const std::shared_ptr<entity> &e);
 
-  std::string parse_query(const entity &e);
+  std::string parse_query(const std::shared_ptr<entity> &e);
 
 public:
   query_selector();

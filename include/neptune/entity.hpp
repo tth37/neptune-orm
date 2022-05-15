@@ -82,8 +82,6 @@ private:
 public:
   explicit entity(std::string table_name);
 
-  entity(const entity &e);
-
   // TODO set get_col_metas to private
   [[nodiscard]] const std::vector<col_meta> &get_col_metas() const;
 
@@ -93,7 +91,7 @@ protected:
     column(neptune::entity *this_ptr, std::string col_name, bool nullable,
            bool is_primary);
 
-    column(const column &c) = default;
+    column(const column &c) = delete;
 
     [[nodiscard]] std::string get_col_name() const;
 
@@ -131,8 +129,6 @@ protected:
   public:
     column_int32(neptune::entity *this_ptr, std::string col_name,
                  bool nullable);
-
-    column_int32(const column_int32 &c);
 
     [[nodiscard]] std::int32_t get_value() const;
 

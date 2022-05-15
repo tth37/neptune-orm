@@ -12,11 +12,6 @@ neptune::entity::entity(std::string table_name)
     : m_table_name(std::move(table_name)), m_col_metas(), m_col_container(),
       _protected_id(this, "_protected_id") {}
 
-neptune::entity::entity(const neptune::entity &e)
-    : m_table_name(e.m_table_name), m_col_metas(),
-      m_col_container(e.m_col_container), _protected_id(this, "_protected_id") {
-}
-
 const std::vector<neptune::entity::col_meta> &
 neptune::entity::get_col_metas() const {
   return m_col_metas;
@@ -208,15 +203,6 @@ neptune::entity::column_int32::column_int32(neptune::entity *this_ptr,
     : column(this_ptr, std::move(col_name), nullable, false) {
   insert_int32_to_container_if_necessary();
   m_metas_ref.emplace_back(m_col_name, false);
-  __NEPTUNE_LOG(debug, "Calls column_int32 constructor");
-}
-
-neptune::entity::column_int32::column_int32(
-    const neptune::entity::column_int32 &c)
-    : column(c) {
-  insert_int32_to_container_if_necessary();
-  m_metas_ref.emplace_back(m_col_name, false);
-  __NEPTUNE_LOG(debug, "Calls column_int32 copy constructor");
 }
 
 std::int32_t neptune::entity::column_int32::get_value() const {

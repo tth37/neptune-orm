@@ -16,7 +16,7 @@ public:
 
   virtual ~connection() = default;
 
-  template <typename T> void insert(T &e);
+  template <typename T> void insert(const std::shared_ptr<entity> &e);
 
 protected:
   std::mutex m_mutex;
@@ -48,6 +48,7 @@ private:
 
 } // namespace neptune
 
-template <typename T> void neptune::connection::insert(T &e) {}
+template <typename T>
+void neptune::connection::insert(const std::shared_ptr<entity> &e) {}
 
 #endif // NEPTUNEORM_CONNECTION_HPP
