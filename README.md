@@ -14,10 +14,13 @@ class user_entity : public entity {
 public:
   // set table_name to "user"
   user_entity() : entity("user") {}
+  
   // set column "id" as primary generated column
   column_primary_generated_uint32 id{this, "id"};
+  
   // set column "age" as int32 column
   column_int32 age{this, "age", true};
+  
   // set column "name" as varchar column with length 32
   column_varchar name{this, "name", false, 32};
 };
