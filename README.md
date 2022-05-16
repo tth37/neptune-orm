@@ -1,4 +1,4 @@
-# NeptuneORM - An easy to use ORM library for C++
+# NeptuneORM - An ORM library for modern C++
 
 ## Quick Start
 
