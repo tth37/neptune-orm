@@ -1,225 +1,127 @@
 #include "neptune/connection.hpp"
-#include "neptune/utils/exception.hpp"
-#include "neptune/utils/logger.hpp"
 #include <mariadb/conncpp/Exception.hpp>
 #include <mariadb/conncpp/Statement.hpp>
-#include <set>
 #include <utility>
 
 // =============================================================================
 // neptune::connection =========================================================
 // =============================================================================
 
-neptune::connection::connection() : m_should_close(false) {}
+neptune::connection::connection() : m_mutex(), m_should_close(false) {}
 
-neptune::connection::query_selector neptune::connection::query() { return {}; }
+neptune::query_selector neptune::connection::query() { return {}; }
 
-// =============================================================================
-// neptune::connection::query_selector =========================================
-// =============================================================================
-
-neptune::connection::query_selector &neptune::connection::query_selector::where(
-    const neptune::connection::query_selector::_where_clause &where_clause) {
-  if (m_where_clause_root == nullptr) {
-    m_where_clause_root = std::make_shared<_where_clause_tree_node>();
-    m_where_clause_root->clause = where_clause;
-  } else {
-    auto new_node = std::make_shared<_where_clause_tree_node>();
-    new_node->clause = where_clause;
-    auto new_root = std::make_shared<_where_clause_tree_node>();
-    new_root->op = "AND";
-    new_root->left = m_where_clause_root;
-    new_root->right = new_node;
-    m_where_clause_root = new_root;
+std::string
+neptune::connection::parse_insert_entity_sql(const std::shared_ptr<entity> &e) {
+  // check not nullable columns
+  for (const auto &col_meta : e->get_col_metas()) {
+    if (col_meta.nullable || col_meta.is_primary)
+      continue;
+    if (e->is_undefined(col_meta.name) || e->is_null(col_meta.name)) {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "column " + col_meta.name + " is not nullable");
+    }
   }
-  return *this;
+
+  // construct sql string
+  std::string sql = "INSERT INTO `" + e->get_table_name() + "` (";
+  bool is_first = true;
+  for (const auto &col_meta : e->get_col_metas()) {
+    if (e->is_undefined(col_meta.name))
+      continue;
+    if (is_first) {
+      is_first = false;
+    } else {
+      sql += ", ";
+    }
+    sql += "`" + col_meta.name + "`";
+  }
+  sql += ") VALUES (";
+  is_first = true;
+  for (const auto &col_meta : e->get_col_metas()) {
+    if (e->is_undefined(col_meta.name))
+      continue;
+    if (is_first) {
+      is_first = false;
+    } else {
+      sql += ", ";
+    }
+    sql += e->get_col_data_as_string(col_meta.name);
+  }
+  sql += ")";
+  return sql;
 }
 
-neptune::connection::query_selector &neptune::connection::query_selector::where(
-    const std::string &col, const std::string &op, const std::string &val) {
-  return where({col, op, val});
+std::string neptune::connection::parse_query_last_insert_entity_sql(
+    const std::shared_ptr<entity> &e, const std::string &uuid) {
+  // construct sql string
+  std::string sql = "SELECT * FROM `" + e->get_table_name() +
+                    "` WHERE `__protected_uuid` = '" + uuid + "'";
+  return sql;
 }
 
-neptune::connection::query_selector &
-neptune::connection::query_selector::where(const std::string &col,
-                                           const std::string &op, int32_t val) {
-  return where({col, op, val});
+std::string
+neptune::connection::parse_select_entities_sql(const std::shared_ptr<entity> &e,
+                                               const query_selector &selector) {
+  // parse select sql
+  std::string select_sql = selector.parse_select_cols(e);
+
+  // parse query sql
+  std::string query_sql = selector.parse_query(e);
+
+  // construct sql string
+  std::string sql = "SELECT " + select_sql + " FROM `" + e->get_table_name() +
+                    "` " + query_sql;
+  return sql;
 }
 
-neptune::connection::query_selector &neptune::connection::query_selector::where(
-    const std::shared_ptr<_where_clause_tree_node> &where_clause_root) {
-  m_where_clause_root = where_clause_root;
-  return *this;
+std::string
+neptune::connection::parse_update_entity_sql(const std::shared_ptr<entity> &e) {
+  // check primary column
+  std::string primary_col_name = e->get_primary_col_name();
+  if (e->is_undefined(primary_col_name) || e->is_null(primary_col_name)) {
+    __NEPTUNE_THROW(exception_type::invalid_argument,
+                    "primary column [" + primary_col_name +
+                        "] is null or undefined");
+  }
+
+  // construct sql string
+  std::string sql = "UPDATE `" + e->get_table_name() + "` SET ";
+  bool is_first = true;
+  for (const auto &col_meta : e->get_col_metas()) {
+    if (e->is_undefined(col_meta.name))
+      continue;
+    if (is_first) {
+      is_first = false;
+    } else {
+      sql += ", ";
+    }
+    sql +=
+        "`" + col_meta.name + "` = " + e->get_col_data_as_string(col_meta.name);
+  }
+  sql += " WHERE `" + primary_col_name +
+         "` = " + e->get_col_data_as_string(primary_col_name);
+
+  return sql;
 }
 
-neptune::connection::query_selector &
-neptune::connection::query_selector::order_by(
-    neptune::connection::query_selector::_order_by_clause order_by_clause) {
-  m_order_by_clauses.push_back(std::move(order_by_clause));
-  return *this;
+std::string
+neptune::connection::parse_remove_entity_sql(const std::shared_ptr<entity> &e) {
+  // check primary column
+  std::string primary_col_name = e->get_primary_col_name();
+  if (e->is_undefined(primary_col_name) || e->is_null(primary_col_name)) {
+    __NEPTUNE_THROW(exception_type::invalid_argument,
+                    "primary column [" + primary_col_name +
+                        "] is null or undefined");
+  }
+
+  // construct sql string
+  std::string sql = "DELETE FROM `" + e->get_table_name() + "` WHERE `" +
+                    primary_col_name +
+                    "` = " + e->get_col_data_as_string(primary_col_name);
+
+  return sql;
 }
-
-neptune::connection::query_selector &
-neptune::connection::query_selector::limit(std::size_t limit) {
-  m_limit = limit;
-  m_has_limit = true;
-  return *this;
-}
-
-neptune::connection::query_selector &
-neptune::connection::query_selector::offset(std::size_t offset) {
-  m_offset = offset;
-  m_has_offset = true;
-  return *this;
-}
-
-neptune::connection::query_selector &
-neptune::connection::query_selector::confirm_no_where() {
-  m_confirm_no_where = true;
-  return *this;
-}
-
-std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
-neptune::or_(
-    const std::shared_ptr<
-        neptune::connection::query_selector::_where_clause_tree_node> &left,
-    const std::shared_ptr<
-        neptune::connection::query_selector::_where_clause_tree_node> &right) {
-  auto new_root = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->op = "OR";
-  new_root->left = left;
-  new_root->right = right;
-  return new_root;
-}
-
-std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
-neptune::or_(
-    const std::shared_ptr<
-        neptune::connection::query_selector::_where_clause_tree_node> &left,
-    const neptune::connection::query_selector::_where_clause
-        &right_where_clause) {
-  auto new_root = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->op = "OR";
-  new_root->left = left;
-  new_root->right = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->right->clause = right_where_clause;
-  return new_root;
-}
-
-std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
-neptune::or_(
-    const neptune::connection::query_selector::_where_clause &left_where_clause,
-    const std::shared_ptr<
-        neptune::connection::query_selector::_where_clause_tree_node> &right) {
-  auto new_root = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->op = "OR";
-  new_root->left = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->left->clause = left_where_clause;
-  new_root->right = right;
-  return new_root;
-}
-
-std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
-neptune::or_(
-    const neptune::connection::query_selector::_where_clause &left_where_clause,
-    const neptune::connection::query_selector::_where_clause
-        &right_where_clause) {
-  auto new_root = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->op = "OR";
-  new_root->left = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->left->clause = left_where_clause;
-  new_root->right = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->right->clause = right_where_clause;
-  return new_root;
-}
-
-std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
-neptune::and_(
-    const std::shared_ptr<
-        neptune::connection::query_selector::_where_clause_tree_node> &left,
-    const std::shared_ptr<
-        neptune::connection::query_selector::_where_clause_tree_node> &right) {
-  auto new_root = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->op = "AND";
-  new_root->left = left;
-  new_root->right = right;
-  return new_root;
-}
-
-std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
-neptune::and_(
-    const std::shared_ptr<
-        neptune::connection::query_selector::_where_clause_tree_node> &left,
-    const neptune::connection::query_selector::_where_clause
-        &right_where_clause) {
-  auto new_root = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->op = "AND";
-  new_root->left = left;
-  new_root->right = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->right->clause = right_where_clause;
-  return new_root;
-}
-
-std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
-neptune::and_(
-    const neptune::connection::query_selector::_where_clause &left_where_clause,
-    const std::shared_ptr<
-        neptune::connection::query_selector::_where_clause_tree_node> &right) {
-  auto new_root = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->op = "AND";
-  new_root->left = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->left->clause = left_where_clause;
-  new_root->right = right;
-  return new_root;
-}
-
-std::shared_ptr<neptune::connection::query_selector::_where_clause_tree_node>
-neptune::and_(
-    const neptune::connection::query_selector::_where_clause &left_where_clause,
-    const neptune::connection::query_selector::_where_clause
-        &right_where_clause) {
-  auto new_root = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->op = "AND";
-  new_root->left = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->left->clause = left_where_clause;
-  new_root->right = std::make_shared<
-      neptune::connection::query_selector::_where_clause_tree_node>();
-  new_root->right->clause = right_where_clause;
-  return new_root;
-}
-
-neptune::connection::query_selector::query_selector()
-    : m_where_clause_root(nullptr), m_order_by_clauses(), m_limit(0),
-      m_offset(0), m_confirm_no_where(false), m_has_limit(false),
-      m_has_offset(false) {}
-
-neptune::connection::query_selector::_where_clause::_where_clause(
-    std::string col_, std::string op_, std::string val_)
-    : col(std::move(col_)), op(std::move(op_)),
-      val("\"" + std::move(val_) + "\"") {}
-
-neptune::connection::query_selector::_where_clause::_where_clause(
-    std::string col_, std::string op_, int32_t val_)
-    : col(std::move(col_)), op(std::move(op_)), val(std::to_string(val_)) {}
-
-neptune::connection::query_selector::_where_clause_tree_node::
-    _where_clause_tree_node()
-    : op(), left(), right(), clause("", "", "") {}
 
 // =============================================================================
 // neptune::mariadb_connection =================================================
@@ -234,197 +136,54 @@ neptune::mariadb_connection::~mariadb_connection() {
     __NEPTUNE_LOG(warn, "Connection already closed");
   }
   m_should_close = true;
-  std::unique_lock<std::mutex> lock(m_mtx);
+  std::unique_lock<std::mutex> lock(m_mutex);
   m_conn->close();
 }
 
-void neptune::mariadb_connection::insert(const neptune::entity &e) {
+void neptune::mariadb_connection::execute(const std::string &sql) {
   if (m_should_close) {
     __NEPTUNE_THROW(exception_type::runtime_error, "Connection already closed");
   }
-  std::unique_lock<std::mutex> lock(m_mtx);
-  std::string sql = e.get_insert_sql_mariadb();
+  std::unique_lock<std::mutex> lock(m_mutex);
   try {
     auto stmt = m_conn->createStatement();
+    __NEPTUNE_LOG(debug, "Executing SQL: {" + sql + "}");
     stmt->execute(sql);
-  } catch (const sql::SQLException &e) {
-    __NEPTUNE_THROW(exception_type::sql_error, e.what());
-  }
-}
-
-void neptune::mariadb_connection::update(
-    const neptune::entity &e,
-    const neptune::connection::query_selector &selector) {
-  if (m_should_close) {
-    __NEPTUNE_THROW(exception_type::runtime_error, "Connection already closed");
-  }
-  std::unique_lock<std::mutex> lock(m_mtx);
-  std::string sql = e.get_update_sql_mariadb();
-  sql += parse_selector_update_remove(e, selector);
-  try {
-    auto stmt = m_conn->createStatement();
-    stmt->execute(sql);
-    __NEPTUNE_LOG(debug, "update sql: " + sql);
-  } catch (const sql::SQLException &e) {
-    __NEPTUNE_THROW(exception_type::sql_error, e.what());
+  } catch (const sql::SQLException &err) {
+    __NEPTUNE_THROW(exception_type::sql_error, err.what());
   }
 }
 
 std::vector<std::shared_ptr<neptune::entity>>
-neptune::mariadb_connection::select_entities(
-    neptune::entity &e, const neptune::connection::query_selector &selector) {
+neptune::mariadb_connection::execute(
+    const std::string &sql, std::function<std::shared_ptr<entity>()> duplicate,
+    const std::set<std::string> &select_cols) {
   if (m_should_close) {
     __NEPTUNE_THROW(exception_type::runtime_error, "Connection already closed");
   }
-  std::unique_lock<std::mutex> lock(m_mtx);
-  std::string sql = parse_selector_query(e, selector);
-  __NEPTUNE_LOG(debug, "Select SQL: " + sql);
-  std::vector<std::shared_ptr<neptune::entity>> res;
+  std::unique_lock<std::mutex> lock(m_mutex);
   try {
     auto stmt = m_conn->createStatement();
-    stmt->execute(sql);
-    auto res_set = stmt->getResultSet();
-    while (res_set->next()) {
-      auto cur_e = e.duplicate();
-      for (auto col : cur_e->get_cols()) {
-        std::string value =
-            (std::string)res_set->getString(col->get_col_name());
-        col->set_value_from_sql_mariadb(value);
+    __NEPTUNE_LOG(debug, "Executing SQL: {" + sql + "}");
+    auto res = stmt->executeQuery(sql);
+    std::vector<std::shared_ptr<neptune::entity>> ret;
+    while (res->next()) {
+      auto e = duplicate();
+      for (const auto &col_meta : e->get_col_metas()) {
+        if (!select_cols.empty() &&
+            select_cols.find(col_meta.name) == select_cols.end()) {
+          continue;
+        }
+        std::string value = (std::string)res->getString(col_meta.name);
+        if (!value.empty())
+          e->set_col_data_from_string(col_meta.name, value);
+        else
+          e->set_col_data_null(col_meta.name);
       }
-      res.push_back(cur_e);
+      ret.push_back(e);
     }
-    return res;
-  } catch (const sql::SQLException &e) {
-    __NEPTUNE_THROW(exception_type::sql_error, e.what());
+    return ret;
+  } catch (const sql::SQLException &err) {
+    __NEPTUNE_THROW(exception_type::sql_error, err.what());
   }
-}
-
-void neptune::mariadb_connection::remove_entities(
-    neptune::entity &e, const neptune::connection::query_selector &selector) {
-  if (m_should_close) {
-    __NEPTUNE_THROW(exception_type::runtime_error, "Connection already closed");
-  }
-  std::unique_lock<std::mutex> lock(m_mtx);
-  std::string sql = e.get_remove_sql_mariadb();
-  sql += parse_selector_update_remove(e, selector);
-  try {
-    auto stmt = m_conn->createStatement();
-    stmt->execute(sql);
-    __NEPTUNE_LOG(debug, "remove sql: " + sql);
-  } catch (const sql::SQLException &e) {
-    __NEPTUNE_THROW(exception_type::sql_error, e.what());
-  }
-}
-
-std::string neptune::mariadb_connection::parse_selector_query(
-    const neptune::entity &e,
-    const neptune::connection::query_selector &selector) {
-  std::set<std::string> col_names;
-  for (auto col : e.get_cols()) {
-    col_names.insert(col->get_col_name());
-  }
-  std::string res = "SELECT * FROM `" + e.get_table_name() + "` ";
-
-  if (selector.m_where_clause_root != nullptr) {
-    res += " WHERE ";
-    res += _dfs_parse_selector_where_clause_tree(col_names,
-                                                 selector.m_where_clause_root);
-  }
-
-  if (!selector.m_order_by_clauses.empty()) {
-    res += " ORDER BY ";
-    for (std::size_t i = 0; i < selector.m_order_by_clauses.size(); ++i) {
-      auto &order_by_clause = selector.m_order_by_clauses[i];
-      if (i != 0) {
-        res += ", ";
-      }
-      res += order_by_clause.col + " " + order_by_clause.dir;
-      if (col_names.find(order_by_clause.col) == col_names.end()) {
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Invalid column name in query_selector: [" +
-                            order_by_clause.col + "]");
-      }
-      if (order_by_clause.dir != "ASC" && order_by_clause.dir != "DESC") {
-        __NEPTUNE_LOG(
-            warn,
-            "Only \"ASC\" and \"DESC\" are supported for order by clause");
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Invalid direction in query_selector: [" +
-                            order_by_clause.dir + "]");
-      }
-    }
-  }
-
-  if (selector.m_has_limit) {
-    res += " LIMIT " + std::to_string(selector.m_limit);
-  }
-
-  if (selector.m_has_offset) {
-    res += " OFFSET " + std::to_string(selector.m_offset);
-  }
-
-  res += ";";
-  __NEPTUNE_LOG(debug, "SQL query: " + res);
-  return res;
-}
-
-std::string neptune::mariadb_connection::parse_selector_update_remove(
-    const neptune::entity &e,
-    const neptune::connection::query_selector &selector) {
-  std::set<std::string> col_names;
-  for (auto col : e.get_cols()) {
-    col_names.insert(col->get_col_name());
-  }
-  std::string res;
-  if (selector.m_where_clause_root != nullptr) {
-    res += " WHERE ";
-    res += _dfs_parse_selector_where_clause_tree(col_names,
-                                                 selector.m_where_clause_root);
-  } else {
-    if (!selector.m_confirm_no_where) {
-      __NEPTUNE_LOG(warn, "You should explicitly specify confirm_no_where when "
-                          "updating or removing without where clause");
-      __NEPTUNE_THROW(exception_type::invalid_argument,
-                      "No where clause in query_selector");
-    }
-  }
-  res += ";";
-  __NEPTUNE_LOG(debug, "SQL update where clause: " + res);
-  return res;
-}
-
-std::string neptune::mariadb_connection::_dfs_parse_selector_where_clause_tree(
-    const std::set<std::string> &col_names,
-    const std::shared_ptr<query_selector::_where_clause_tree_node> &node) {
-  std::string res = "( ";
-  if (node->left == nullptr && node->right == nullptr) {
-    res += "`" + node->clause.col + "` " + node->clause.op + " " +
-           node->clause.val;
-    if (col_names.find(node->clause.col) == col_names.end()) {
-      __NEPTUNE_THROW(exception_type::invalid_argument,
-                      "Invalid column name in query_selector: [" +
-                          node->clause.col + "]");
-    }
-    if (node->clause.op != "=" && node->clause.op != "!=" &&
-        node->clause.op != ">" && node->clause.op != "<" &&
-        node->clause.op != ">=" && node->clause.op != "<=") {
-      __NEPTUNE_THROW(exception_type::invalid_argument,
-                      "Invalid operator in query_selector: [" +
-                          node->clause.op + "]");
-    }
-  } else {
-    res += "(";
-    res += _dfs_parse_selector_where_clause_tree(col_names, node->left);
-    res += " " + node->op + " ";
-    res += _dfs_parse_selector_where_clause_tree(col_names, node->right);
-    res += ")";
-    if (node->op != "AND" && node->op != "OR" && node->op != "and" &&
-        node->op != "or") {
-      __NEPTUNE_THROW(exception_type::invalid_argument,
-                      "Invalid logic operator in query_selector: [" + node->op +
-                          "]");
-    }
-  }
-  res += " )";
-  return res;
 }

@@ -15,7 +15,7 @@ public:
 
   virtual ~driver() = default;
 
-  virtual void register_entity(std::shared_ptr<neptune::entity> entity) = 0;
+  void register_entity(const std::shared_ptr<entity> &e);
 
   virtual void initialize() = 0;
 
@@ -23,7 +23,6 @@ public:
 
 protected:
   std::vector<std::shared_ptr<neptune::entity>> m_entities;
-
   std::string m_db_name;
 };
 
@@ -32,9 +31,7 @@ public:
   mariadb_driver(std::string url, std::uint32_t port, std::string user,
                  std::string password, std::string db_name);
 
-  ~mariadb_driver() override;
-
-  void register_entity(std::shared_ptr<neptune::entity> entity) override;
+  ~mariadb_driver() override = default;
 
   void initialize() override;
 
@@ -46,41 +43,10 @@ private:
   sql::Driver *m_driver;
 };
 
-template <typename T>
-driver *use_mariadb_driver(const std::string &url, std::uint32_t port,
-                           const std::string &user, const std::string &password,
-                           const std::string &db_name,
-                           std::shared_ptr<T> entity) {
-  auto driver = new neptune::mariadb_driver(url, port, user, password, db_name);
-  driver->register_entity(entity);
-  driver->initialize();
-  return driver;
-}
-
-template <typename T, typename... Args>
-driver *use_mariadb_driver(const std::string &url, std::uint32_t port,
-                           const std::string &user, const std::string &password,
-                           const std::string &db_name,
-                           std::shared_ptr<T> entity, Args &&...args) {
-  auto driver = new neptune::mariadb_driver(url, port, user, password, db_name);
-  driver->register_entity(entity);
-  return _use_mariadb_driver(driver, std::forward<Args>(args)...);
-}
-
-template <typename T>
-driver *_use_mariadb_driver(neptune::driver *driver,
-                            std::shared_ptr<T> entity) {
-  driver->register_entity(entity);
-  driver->initialize();
-  return driver;
-}
-
-template <typename T, typename... Args>
-driver *_use_mariadb_driver(neptune::driver *driver, std::shared_ptr<T> entity,
-                            Args &&...args) {
-  driver->register_entity(entity);
-  return _use_mariadb_driver(driver, std::forward<Args>(args)...);
-}
+std::shared_ptr<driver>
+use_mariadb_driver(std::string url, std::uint32_t port, std::string user,
+                   std::string password, std::string db_name,
+                   std::vector<std::shared_ptr<entity>> entities);
 
 } // namespace neptune
 
