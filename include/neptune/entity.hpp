@@ -11,6 +11,8 @@ namespace neptune {
 class entity {
   friend class connection;
   friend class mariadb_connection;
+  friend class mariadb_driver;
+  friend class query_selector;
 
 private:
   class col_data {
@@ -65,15 +67,47 @@ private:
     void set_value(std::int32_t value);
   };
 
-  struct col_meta {
-    std::string name;
-    bool is_primary;
+  class col_data_string : public col_data {
+  private:
+    std::string m_value;
 
-    col_meta(std::string name_, bool is_primary_);
+  public:
+    col_data_string();
+
+    void set_value_from_string(const std::string &value) override;
+
+    [[nodiscard]] std::string get_value_as_string() const override;
+
+    [[nodiscard]] const std::string &get_value() const;
+
+    void set_value(const std::string &value);
+  };
+
+  struct col_meta {
+    std::string name, type;
+    bool is_primary, nullable;
+
+    col_meta(std::string name_, std::string type_, bool is_primary_,
+             bool nullable_);
   };
 
   void set_col_data_from_string(const std::string &col_name,
                                 const std::string &value);
+
+  void set_col_data_null(const std::string &col_name);
+
+  void set_col_data_undefined(const std::string &col_name);
+
+  [[nodiscard]] std::string
+  get_col_data_as_string(const std::string &col_name) const;
+
+  [[nodiscard]] bool is_undefined(const std::string &col_name) const;
+
+  [[nodiscard]] bool is_null(const std::string &col_name) const;
+
+  [[nodiscard]] const std::vector<col_meta> &get_col_metas() const;
+
+  [[nodiscard]] std::string get_table_name() const;
 
   std::string m_table_name;
   std::map<std::string, std::shared_ptr<col_data>> m_col_container;
@@ -81,9 +115,6 @@ private:
 
 public:
   explicit entity(std::string table_name);
-
-  // TODO set get_col_metas to private
-  [[nodiscard]] const std::vector<col_meta> &get_col_metas() const;
 
 protected:
   class column {
@@ -103,6 +134,8 @@ protected:
 
     void set_null();
 
+    explicit operator bool() const;
+
   protected:
     bool m_nullable;
     bool m_is_primary;
@@ -113,6 +146,8 @@ protected:
     void insert_int32_to_container_if_necessary();
 
     void insert_uint32_to_container_if_necessary();
+
+    void insert_string_to_container_if_necessary();
   };
 
   class column_primary_generated_uint32 : public column {
@@ -135,8 +170,21 @@ protected:
     void set_value(std::int32_t value);
   };
 
+  class column_varchar : public column {
+  public:
+    column_varchar(neptune::entity *this_ptr, std::string col_name,
+                   bool nullable, std::size_t max_length);
+
+    [[nodiscard]] std::string get_value() const;
+
+    void set_value(const std::string &value);
+
+  private:
+    std::size_t m_max_length;
+  };
+
 private:
-  column_primary_generated_uint32 _protected_id;
+  column_varchar uuid{this, "__protected_uuid", false, 36};
 };
 
 } // namespace neptune

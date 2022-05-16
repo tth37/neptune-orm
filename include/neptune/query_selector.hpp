@@ -10,6 +10,7 @@
 namespace neptune {
 
 class query_selector {
+  friend class connection;
 
 private:
   struct _where_clause {
@@ -36,17 +37,22 @@ private:
 
   std::shared_ptr<_where_clause_tree_node> m_where_clause_root;
   std::vector<_order_by_clause> m_order_by_clauses;
+  std::set<std::string> m_select_cols;
   std::size_t m_limit, m_offset;
-  bool m_has_limit, m_has_offset;
-  bool m_confirm_no_where;
+  bool m_has_limit, m_has_offset, m_confirm_no_where, m_has_select_cols;
 
-  std::string _dfs_parse_where_clause_tree(
+  [[nodiscard]] std::string _dfs_parse_where_clause_tree(
       const std::shared_ptr<_where_clause_tree_node> &node,
-      const std::set<std::string> &col_names);
+      const std::set<std::string> &col_names) const;
 
-  std::string parse_where(const std::shared_ptr<entity> &e);
+  [[nodiscard]] std::string parse_where(const std::shared_ptr<entity> &e) const;
 
-  std::string parse_query(const std::shared_ptr<entity> &e);
+  [[nodiscard]] std::string parse_query(const std::shared_ptr<entity> &e) const;
+
+  [[nodiscard]] std::string
+  parse_select_cols(const std::shared_ptr<entity> &e) const;
+
+  [[nodiscard]] const std::set<std::string> &get_select_cols_set() const;
 
 public:
   query_selector();
@@ -70,6 +76,10 @@ public:
 
   query_selector &confirm_no_where();
 
+  query_selector &select(const std::string &col_name);
+
+  query_selector &select(const std::vector<std::string> &col_names);
+
   static std::shared_ptr<query_selector::_where_clause_tree_node>
   or_(const std::shared_ptr<query_selector::_where_clause_tree_node> &left,
       const std::shared_ptr<query_selector::_where_clause_tree_node> &right);
@@ -86,6 +96,8 @@ public:
   or_(const query_selector::_where_clause &left_where_clause,
       const query_selector::_where_clause &right_where_clause);
 };
+
+query_selector query();
 
 } // namespace neptune
 

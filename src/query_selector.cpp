@@ -33,7 +33,7 @@ neptune::query_selector::_where_clause_tree_node::_where_clause_tree_node()
 neptune::query_selector::query_selector()
     : m_where_clause_root(nullptr), m_order_by_clauses(), m_limit(0),
       m_offset(0), m_confirm_no_where(false), m_has_limit(false),
-      m_has_offset(false) {}
+      m_has_offset(false), m_has_select_cols(false) {}
 
 neptune::query_selector &neptune::query_selector::where(
     const neptune::query_selector::_where_clause &where_clause) {
@@ -93,6 +93,22 @@ neptune::query_selector &neptune::query_selector::confirm_no_where() {
   return *this;
 }
 
+neptune::query_selector &
+neptune::query_selector::select(const std::string &col_name) {
+  m_has_select_cols = true;
+  m_select_cols.insert(col_name);
+  return *this;
+}
+
+neptune::query_selector &
+neptune::query_selector::select(const std::vector<std::string> &col_names) {
+  m_has_select_cols = true;
+  for (const auto &col_name : col_names) {
+    m_select_cols.insert(col_name);
+  }
+  return *this;
+}
+
 std::shared_ptr<neptune::query_selector::_where_clause_tree_node>
 neptune::query_selector::or_(
     const std::shared_ptr<query_selector::_where_clause_tree_node> &left,
@@ -137,7 +153,7 @@ neptune::query_selector::or_(
 
 std::string neptune::query_selector::_dfs_parse_where_clause_tree(
     const std::shared_ptr<_where_clause_tree_node> &node,
-    const std::set<std::string> &col_names) {
+    const std::set<std::string> &col_names) const {
   std::string res;
   if (node->left == nullptr && node->right == nullptr) {
     res += "`" + node->clause.col + "` " + node->clause.op + " " +
@@ -171,7 +187,7 @@ std::string neptune::query_selector::_dfs_parse_where_clause_tree(
 }
 
 std::string
-neptune::query_selector::parse_where(const std::shared_ptr<entity> &e) {
+neptune::query_selector::parse_where(const std::shared_ptr<entity> &e) const {
   std::set<std::string> col_names;
   for (const auto &col_meta : e->get_col_metas()) {
     col_names.insert(col_meta.name);
@@ -194,7 +210,7 @@ neptune::query_selector::parse_where(const std::shared_ptr<entity> &e) {
 }
 
 std::string
-neptune::query_selector::parse_query(const std::shared_ptr<entity> &e) {
+neptune::query_selector::parse_query(const std::shared_ptr<entity> &e) const {
   std::set<std::string> col_names;
   for (const auto &col_meta : e->get_col_metas()) {
     col_names.insert(col_meta.name);
@@ -242,3 +258,32 @@ neptune::query_selector::parse_query(const std::shared_ptr<entity> &e) {
   __NEPTUNE_LOG(debug, "Parsed query: " + res);
   return res;
 }
+
+std::string neptune::query_selector::parse_select_cols(
+    const std::shared_ptr<entity> &e) const {
+  std::set<std::string> col_names;
+  for (const auto &col_meta : e->get_col_metas()) {
+    col_names.insert(col_meta.name);
+  }
+  if (!m_has_select_cols)
+    return "*";
+  std::string res;
+  for (const auto &col : m_select_cols) {
+    if (col_names.find(col) == col_names.end()) {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Invalid column name in query_selector: [" + col + "]");
+    }
+    if (!res.empty()) {
+      res += ", ";
+    }
+    res += col;
+  }
+  return res;
+}
+
+const std::set<std::string> &
+neptune::query_selector::get_select_cols_set() const {
+  return m_select_cols;
+}
+
+neptune::query_selector neptune::query() { return {}; }
