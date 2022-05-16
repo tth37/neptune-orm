@@ -109,6 +109,8 @@ private:
 
   [[nodiscard]] std::string get_table_name() const;
 
+  [[nodiscard]] std::string get_primary_col_name() const;
+
   std::string m_table_name;
   std::map<std::string, std::shared_ptr<col_data>> m_col_container;
   std::vector<col_meta> m_col_metas;

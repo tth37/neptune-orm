@@ -44,6 +44,16 @@ void neptune::entity::set_col_data_undefined(const std::string &col_name) {
   m_col_container.at(col_name)->set_undefined();
 }
 
+std::string neptune::entity::get_primary_col_name() const {
+  for (const auto &col_meta : m_col_metas) {
+    if (col_meta.is_primary) {
+      return col_meta.name;
+    }
+  }
+  __NEPTUNE_THROW(exception_type::runtime_error,
+                  "No primary column found in table " + m_table_name);
+}
+
 // =============================================================================
 // neptune::entity::col_data ===================================================
 // =============================================================================

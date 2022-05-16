@@ -43,6 +43,11 @@ private:
   sql::Driver *m_driver;
 };
 
+std::shared_ptr<driver>
+use_mariadb_driver(std::string url, std::uint32_t port, std::string user,
+                   std::string password, std::string db_name,
+                   std::vector<std::shared_ptr<entity>> entities);
+
 } // namespace neptune
 
 #endif // NEPTUNEORM_DRIVER_HPP

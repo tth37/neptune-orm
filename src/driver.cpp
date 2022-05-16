@@ -105,3 +105,15 @@ neptune::mariadb_driver::create_connection() {
     __NEPTUNE_THROW(exception_type::sql_error, e.what())
   }
 }
+
+std::shared_ptr<neptune::driver> neptune::use_mariadb_driver(
+    std::string url, std::uint32_t port, std::string user, std::string password,
+    std::string db_name, std::vector<std::shared_ptr<entity>> entities) {
+  auto driver = std::make_shared<neptune::mariadb_driver>(url, port, user,
+                                                          password, db_name);
+  for (auto &e : entities) {
+    driver->register_entity(e);
+  }
+  driver->initialize();
+  return driver;
+}

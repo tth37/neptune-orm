@@ -18,12 +18,19 @@ public:
 
   virtual ~connection() = default;
 
+  static query_selector query();
+
   template <typename T> std::shared_ptr<T> insert(const std::shared_ptr<T> &e);
 
   template <typename T>
-  std::vector<std::shared_ptr<T>> select(query_selector &selector);
+  std::vector<std::shared_ptr<T>> select(const query_selector &selector);
 
-  template <typename T> std::shared_ptr<T> select_one(query_selector &selector);
+  template <typename T>
+  std::shared_ptr<T> select_one(const query_selector &selector);
+
+  template <typename T> void update(const std::shared_ptr<T> &e);
+
+  template <typename T> void remove(const std::shared_ptr<T> &e);
 
 protected:
   std::mutex m_mutex;
@@ -35,7 +42,7 @@ private:
   virtual std::vector<std::shared_ptr<entity>>
   execute(const std::string &sql,
           std::function<std::shared_ptr<entity>()> duplicate,
-          const std::set<std::string> &select_cols = {}) = 0;
+          const std::set<std::string> &select_cols) = 0;
 
   static std::string parse_insert_entity_sql(const std::shared_ptr<entity> &e);
 
@@ -45,6 +52,10 @@ private:
 
   static std::string parse_select_entities_sql(const std::shared_ptr<entity> &e,
                                                const query_selector &selector);
+
+  static std::string parse_update_entity_sql(const std::shared_ptr<entity> &e);
+
+  static std::string parse_remove_entity_sql(const std::shared_ptr<entity> &e);
 };
 
 class mariadb_connection : public connection {
@@ -73,7 +84,9 @@ std::shared_ptr<T> neptune::connection::insert(const std::shared_ptr<T> &e) {
   std::string sql = parse_insert_entity_sql(e);
   execute(sql);
   sql = parse_query_last_insert_entity_sql(e, uuid);
-  auto inserted_e = execute(sql, []() { return std::make_shared<T>(); });
+  std::set<std::string> select_cols;
+  auto inserted_e = execute(
+      sql, []() { return std::make_shared<T>(); }, select_cols);
   if (inserted_e.size() != 1) {
     __NEPTUNE_THROW(exception_type::runtime_error, "Insert failed");
   }
@@ -82,7 +95,7 @@ std::shared_ptr<T> neptune::connection::insert(const std::shared_ptr<T> &e) {
 
 template <typename T>
 std::vector<std::shared_ptr<T>>
-neptune::connection::select(query_selector &selector) {
+neptune::connection::select(const query_selector &selector) {
   auto e = std::make_shared<T>();
   auto col_metas = e->get_col_metas();
   auto select_cols = selector.get_select_cols_set();
@@ -99,11 +112,25 @@ neptune::connection::select(query_selector &selector) {
 }
 
 template <typename T>
-std::shared_ptr<T> neptune::connection::select_one(query_selector &selector) {
-  auto res = select<T>(selector.limit(1));
+std::shared_ptr<T>
+neptune::connection::select_one(const query_selector &selector) {
+  query_selector new_selector(selector);
+  auto res = select<T>(new_selector.limit(1));
   if (res.empty())
     return nullptr;
   return res[0];
+}
+
+template <typename T>
+void neptune::connection::update(const std::shared_ptr<T> &e) {
+  std::string sql = parse_update_entity_sql(e);
+  execute(sql);
+}
+
+template <typename T>
+void neptune::connection::remove(const std::shared_ptr<T> &e) {
+  std::string sql = parse_remove_entity_sql(e);
+  execute(sql);
 }
 
 #endif // NEPTUNEORM_CONNECTION_HPP

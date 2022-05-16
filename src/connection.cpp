@@ -9,6 +9,8 @@
 
 neptune::connection::connection() : m_mutex(), m_should_close(false) {}
 
+neptune::query_selector neptune::connection::query() { return {}; }
+
 std::string
 neptune::connection::parse_insert_entity_sql(const std::shared_ptr<entity> &e) {
   // check not nullable columns
@@ -70,6 +72,54 @@ neptune::connection::parse_select_entities_sql(const std::shared_ptr<entity> &e,
   // construct sql string
   std::string sql = "SELECT " + select_sql + " FROM `" + e->get_table_name() +
                     "` " + query_sql;
+  return sql;
+}
+
+std::string
+neptune::connection::parse_update_entity_sql(const std::shared_ptr<entity> &e) {
+  // check primary column
+  std::string primary_col_name = e->get_primary_col_name();
+  if (e->is_undefined(primary_col_name) || e->is_null(primary_col_name)) {
+    __NEPTUNE_THROW(exception_type::invalid_argument,
+                    "primary column [" + primary_col_name +
+                        "] is null or undefined");
+  }
+
+  // construct sql string
+  std::string sql = "UPDATE `" + e->get_table_name() + "` SET ";
+  bool is_first = true;
+  for (const auto &col_meta : e->get_col_metas()) {
+    if (e->is_undefined(col_meta.name))
+      continue;
+    if (is_first) {
+      is_first = false;
+    } else {
+      sql += ", ";
+    }
+    sql +=
+        "`" + col_meta.name + "` = " + e->get_col_data_as_string(col_meta.name);
+  }
+  sql += " WHERE `" + primary_col_name +
+         "` = " + e->get_col_data_as_string(primary_col_name);
+
+  return sql;
+}
+
+std::string
+neptune::connection::parse_remove_entity_sql(const std::shared_ptr<entity> &e) {
+  // check primary column
+  std::string primary_col_name = e->get_primary_col_name();
+  if (e->is_undefined(primary_col_name) || e->is_null(primary_col_name)) {
+    __NEPTUNE_THROW(exception_type::invalid_argument,
+                    "primary column [" + primary_col_name +
+                        "] is null or undefined");
+  }
+
+  // construct sql string
+  std::string sql = "DELETE FROM `" + e->get_table_name() + "` WHERE `" +
+                    primary_col_name +
+                    "` = " + e->get_col_data_as_string(primary_col_name);
+
   return sql;
 }
 

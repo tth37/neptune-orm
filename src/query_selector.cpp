@@ -33,7 +33,7 @@ neptune::query_selector::_where_clause_tree_node::_where_clause_tree_node()
 neptune::query_selector::query_selector()
     : m_where_clause_root(nullptr), m_order_by_clauses(), m_limit(0),
       m_offset(0), m_confirm_no_where(false), m_has_limit(false),
-      m_has_offset(false), m_has_select_cols(false) {}
+      m_has_offset(false) {}
 
 neptune::query_selector &neptune::query_selector::where(
     const neptune::query_selector::_where_clause &where_clause) {
@@ -95,14 +95,12 @@ neptune::query_selector &neptune::query_selector::confirm_no_where() {
 
 neptune::query_selector &
 neptune::query_selector::select(const std::string &col_name) {
-  m_has_select_cols = true;
   m_select_cols.insert(col_name);
   return *this;
 }
 
 neptune::query_selector &
 neptune::query_selector::select(const std::vector<std::string> &col_names) {
-  m_has_select_cols = true;
   for (const auto &col_name : col_names) {
     m_select_cols.insert(col_name);
   }
@@ -254,8 +252,6 @@ neptune::query_selector::parse_query(const std::shared_ptr<entity> &e) const {
     res += " OFFSET " + std::to_string(m_offset);
   }
 
-  res += ";";
-  __NEPTUNE_LOG(debug, "Parsed query: " + res);
   return res;
 }
 
@@ -265,7 +261,7 @@ std::string neptune::query_selector::parse_select_cols(
   for (const auto &col_meta : e->get_col_metas()) {
     col_names.insert(col_meta.name);
   }
-  if (!m_has_select_cols)
+  if (m_select_cols.empty())
     return "*";
   std::string res;
   for (const auto &col : m_select_cols) {
@@ -285,5 +281,3 @@ const std::set<std::string> &
 neptune::query_selector::get_select_cols_set() const {
   return m_select_cols;
 }
-
-neptune::query_selector neptune::query() { return {}; }

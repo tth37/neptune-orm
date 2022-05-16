@@ -39,7 +39,7 @@ private:
   std::vector<_order_by_clause> m_order_by_clauses;
   std::set<std::string> m_select_cols;
   std::size_t m_limit, m_offset;
-  bool m_has_limit, m_has_offset, m_confirm_no_where, m_has_select_cols;
+  bool m_has_limit, m_has_offset, m_confirm_no_where;
 
   [[nodiscard]] std::string _dfs_parse_where_clause_tree(
       const std::shared_ptr<_where_clause_tree_node> &node,
@@ -96,8 +96,6 @@ public:
   or_(const query_selector::_where_clause &left_where_clause,
       const query_selector::_where_clause &right_where_clause);
 };
-
-query_selector query();
 
 } // namespace neptune
 
