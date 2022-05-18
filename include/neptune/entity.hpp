@@ -91,6 +91,59 @@ private:
              bool nullable_);
   };
 
+  class rel_data {
+  protected:
+    bool m_is_null, m_is_undefined;
+
+  public:
+    rel_data();
+
+    [[nodiscard]] bool is_null() const;
+
+    void set_null();
+
+    [[nodiscard]] bool is_undefined() const;
+
+    void set_undefined();
+  };
+
+  class rel_data_single : public rel_data {
+  private:
+    std::shared_ptr<entity> m_value;
+
+  public:
+    rel_data_single();
+
+    void set_value_from_entity(const std::shared_ptr<entity> &value);
+
+    [[nodiscard]] std::string get_value_as_uuid() const;
+
+    [[nodiscard]] std::shared_ptr<entity> get_value() const;
+  };
+
+  class rel_data_multiple : public rel_data {
+  private:
+    std::vector<std::shared_ptr<entity>> m_value;
+
+  public:
+    rel_data_multiple();
+
+    void
+    set_value_from_entities(const std::vector<std::shared_ptr<entity>> &value);
+
+    [[nodiscard]] std::vector<std::string> get_value_as_uuids() const;
+
+    [[nodiscard]] std::vector<std::shared_ptr<entity>> get_value() const;
+  };
+
+  struct rel_meta {
+    std::string key, type, dir, foreign_key;
+    std::shared_ptr<entity> foreign_entity;
+
+    rel_meta(std::string key_, std::string type_, std::string dir_,
+             std::string foreign_key_, std::shared_ptr<entity> foreign_entity_);
+  };
+
   void set_col_data_from_string(const std::string &col_name,
                                 const std::string &value);
 
@@ -114,6 +167,8 @@ private:
   std::string m_table_name;
   std::map<std::string, std::shared_ptr<col_data>> m_col_container;
   std::vector<col_meta> m_col_metas;
+  std::map<std::string, std::shared_ptr<rel_data>> m_rel_container;
+  std::vector<rel_meta> m_rel_metas;
 
 public:
   explicit entity(std::string table_name);
@@ -139,6 +194,9 @@ protected:
     explicit operator bool() const;
 
   protected:
+    /**
+     * TODO remove unused m_nullable and m_is_primary
+     */
     bool m_nullable;
     bool m_is_primary;
     std::string m_col_name;
@@ -183,6 +241,37 @@ protected:
 
   private:
     std::size_t m_max_length;
+  };
+
+  class relation {
+  public:
+    relation(neptune::entity *this_ptr, std::string rel_key);
+
+    relation(const relation &c) = delete;
+
+    [[nodiscard]] std::string get_rel_key() const;
+
+    [[nodiscard]] bool is_undefined() const;
+
+    void set_undefined();
+
+    [[nodiscard]] bool is_null() const;
+
+    void set_null();
+
+    explicit operator bool() const;
+
+  private:
+    std::string m_rel_key;
+    std::map<std::string, std::shared_ptr<rel_data>> &m_container_ref;
+    std::vector<rel_meta> &m_metas_ref;
+  };
+
+  class relation_one_to_one : public relation {
+  public:
+
+
+
   };
 
 private:
