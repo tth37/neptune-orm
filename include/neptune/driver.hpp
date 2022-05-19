@@ -24,6 +24,16 @@ public:
 protected:
   std::vector<std::shared_ptr<neptune::entity>> m_entities;
   std::string m_db_name;
+
+  void check_duplicated_table_names();
+
+  void check_duplicated_col_rel_names();
+
+  void check_primary_key_count();
+
+  void check_one_to_one_relations();
+
+  static std::string parse_create_table_sql(const std::shared_ptr<entity> &e);
 };
 
 class mariadb_driver : public driver {

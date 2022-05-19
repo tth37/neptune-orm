@@ -12,6 +12,125 @@ void neptune::driver::register_entity(const std::shared_ptr<entity> &e) {
   m_entities.push_back(e);
 }
 
+void neptune::driver::check_duplicated_table_names() {
+  std::set<std::string> table_names;
+  for (auto &e : m_entities) {
+    if (table_names.find(e->get_table_name()) != table_names.end()) {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Duplicated table name: [" + e->get_table_name() + "]")
+    }
+    table_names.insert(e->get_table_name());
+  }
+}
+
+void neptune::driver::check_duplicated_col_rel_names() {
+  for (auto &e : m_entities) {
+    std::set<std::string> col_rel_names;
+    for (const auto &col_meta : e->get_col_metas()) {
+      if (col_rel_names.find(col_meta.name) != col_rel_names.end()) {
+        __NEPTUNE_THROW(exception_type::invalid_argument,
+                        "Duplicated column relation name: [" + col_meta.name +
+                            "]")
+      }
+      col_rel_names.insert(col_meta.name);
+    }
+    for (const auto &rel_meta : e->get_rel_metas()) {
+      if (col_rel_names.find(rel_meta.key) != col_rel_names.end()) {
+        __NEPTUNE_THROW(exception_type::invalid_argument,
+                        "Duplicated column relation name: [" + rel_meta.key +
+                            "]")
+      }
+      col_rel_names.insert(rel_meta.key);
+    }
+  }
+}
+
+void neptune::driver::check_primary_key_count() {
+  for (auto &e : m_entities) {
+    std::uint32_t primary_key_count(0);
+    for (auto &col_meta : e->get_col_metas()) {
+      if (col_meta.is_primary) {
+        primary_key_count++;
+      }
+    }
+    if (primary_key_count != 1) {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Primary key count must be 1")
+    }
+  }
+}
+
+void neptune::driver::check_one_to_one_relations() {
+  struct rel_meta_checker {
+    std::string table, key, type;
+    rel_meta_dir dir;
+    std::string foreign_table, foreign_key;
+  };
+  std::vector<rel_meta_checker> expected_rel_metas;
+  for (auto &e : m_entities) {
+    for (auto &rel_meta : e->get_rel_metas()) {
+      if (rel_meta.type != "one_to_one") {
+        continue;
+      }
+      // foreign entity must have a one_to_one relation respectively
+      expected_rel_metas.push_back({rel_meta.foreign_table,
+                                    rel_meta.foreign_key, "one_to_one",
+                                    rel_meta.dir == left ? right : left,
+                                    e->get_table_name(), rel_meta.key});
+    }
+  }
+  for (auto &ck : expected_rel_metas) {
+    bool found = false;
+    for (auto &e : m_entities) {
+      if (e->get_table_name() == ck.table) {
+        for (auto &rel_meta : e->get_rel_metas()) {
+          if (rel_meta.foreign_table == ck.foreign_table &&
+              rel_meta.foreign_key == ck.foreign_key &&
+              rel_meta.type == "one_to_one" && rel_meta.dir == ck.dir) {
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          break;
+        }
+      }
+    }
+    if (!found) {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "One to one relation not found: [" + ck.table + "]")
+    }
+  }
+}
+
+std::string
+neptune::driver::parse_create_table_sql(const std::shared_ptr<entity> &e) {
+  std::string sql;
+  sql += "CREATE TABLE IF NOT EXISTS `" + e->get_table_name() + "` (";
+  bool is_first = true;
+  for (const auto &col_meta : e->get_col_metas()) {
+    if (is_first) {
+      is_first = false;
+    } else {
+      sql += ", ";
+    }
+    sql += "`" + col_meta.name + "` " + col_meta.type;
+  }
+  for (const auto &rel_meta : e->get_rel_metas()) {
+    if (rel_meta.type != "one_to_one" && rel_meta.type != "many_to_one") {
+      continue;
+    }
+    if (is_first) {
+      is_first = false;
+    } else {
+      sql += ", ";
+    }
+    sql += "`" + rel_meta.key + "` VARCHAR(36)";
+  }
+  sql += ")";
+  return sql;
+}
+
 // =============================================================================
 // neptune::mariadb_driver =====================================================
 // =============================================================================
@@ -44,46 +163,21 @@ void neptune::mariadb_driver::initialize() {
     sql_conn->setSchema(m_db_name);
 
     // check duplicated table names
-    std::set<std::string> table_names;
-    for (auto &e : m_entities) {
-      if (table_names.find(e->get_table_name()) != table_names.end()) {
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Duplicated table name: [" + e->get_table_name() + "]")
-      }
-      table_names.insert(e->get_table_name());
-    }
+    check_duplicated_table_names();
 
-    // check duplicated column names and primary key
-    for (auto &e : m_entities) {
-      std::set<std::string> column_names;
-      std::uint32_t primary_key_count(0);
-      for (auto &col_meta : e->get_col_metas()) {
-        if (column_names.find(col_meta.name) != column_names.end()) {
-          __NEPTUNE_THROW(exception_type::invalid_argument,
-                          "Duplicated column name: [" + col_meta.name + "]")
-        }
-        column_names.insert(col_meta.name);
-        if (col_meta.is_primary) {
-          primary_key_count++;
-        }
-      }
-      if (primary_key_count != 1) {
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Primary key count must be 1")
-      }
-    }
+    // check duplicated column relation names
+    check_duplicated_col_rel_names();
+
+    // check primary key count
+    check_primary_key_count();
+
+    // check one_to_one relations
+    check_one_to_one_relations();
 
     // create tables
     for (auto &e : m_entities) {
-      sql = "CREATE TABLE IF NOT EXISTS `" + e->get_table_name() + "` (";
-      for (auto &col_meta : e->get_col_metas()) {
-        sql += "`" + col_meta.name + "` " + col_meta.type;
-        sql += ", ";
-      }
-      sql.pop_back();
-      sql.pop_back();
-      sql += ")";
-      __NEPTUNE_LOG(debug, "Create table sql: [" + sql + "]");
+      sql = parse_create_table_sql(e);
+      __NEPTUNE_LOG(debug, "Create table sql: {" + sql + "}");
       stmt->execute(sql);
     }
 

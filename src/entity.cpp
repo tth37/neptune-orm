@@ -21,17 +21,35 @@ neptune::entity::get_col_data_as_string(const std::string &col_name) const {
   return m_col_container.at(col_name)->get_value_as_string();
 }
 
-bool neptune::entity::is_undefined(const std::string &col_name) const {
+std::string neptune::entity::get_rel_uuid(const std::string &rel_key) const {
+  return std::static_pointer_cast<rel_data_single>(m_rel_container.at(rel_key))
+      ->get_uuid();
+}
+
+bool neptune::entity::is_undefined_col(const std::string &col_name) const {
   return m_col_container.at(col_name)->is_undefined();
 }
 
-bool neptune::entity::is_null(const std::string &col_name) const {
+bool neptune::entity::is_null_col(const std::string &col_name) const {
   return m_col_container.at(col_name)->is_null();
+}
+
+bool neptune::entity::is_undefined_rel(const std::string &rel_key) const {
+  return m_rel_container.at(rel_key)->is_undefined();
+}
+
+bool neptune::entity::is_null_rel(const std::string &rel_key) const {
+  return m_rel_container.at(rel_key)->is_null();
 }
 
 const std::vector<neptune::entity::col_meta> &
 neptune::entity::get_col_metas() const {
   return m_col_metas;
+}
+
+const std::vector<neptune::entity::rel_meta> &
+neptune::entity::get_rel_metas() const {
+  return m_rel_metas;
 }
 
 std::string neptune::entity::get_table_name() const { return m_table_name; }
@@ -44,6 +62,28 @@ void neptune::entity::set_col_data_undefined(const std::string &col_name) {
   m_col_container.at(col_name)->set_undefined();
 }
 
+void neptune::entity::set_rel_target_uuid(const std::string &rel_key,
+                                          const std::string &target_uuid) {
+  std::static_pointer_cast<rel_data_single>(m_rel_container.at(rel_key))
+      ->set_target_uuid(target_uuid);
+}
+
+void neptune::entity::set_rel_data_null(const std::string &rel_key) {
+  m_rel_container.at(rel_key)->set_null();
+}
+
+void neptune::entity::set_rel_data_from_entity(
+    const std::string &rel_key, const std::shared_ptr<entity> &value) {
+  std::static_pointer_cast<rel_data_single>(m_rel_container.at(rel_key))
+      ->set_value(value);
+}
+
+std::string
+neptune::entity::get_rel_target_uuid(const std::string &rel_key) const {
+  return std::static_pointer_cast<rel_data_single>(m_rel_container.at(rel_key))
+      ->get_target_uuid();
+}
+
 std::string neptune::entity::get_primary_col_name() const {
   for (const auto &col_meta : m_col_metas) {
     if (col_meta.is_primary) {
@@ -52,6 +92,36 @@ std::string neptune::entity::get_primary_col_name() const {
   }
   __NEPTUNE_THROW(exception_type::runtime_error,
                   "No primary column found in table " + m_table_name);
+}
+
+void neptune::entity::check_expected_rel_meta(
+    const std::string &rel_key, const std::string &type,
+    const std::string &foreign_table, const std::string &foreign_key) const {
+  for (const auto &rel_meta : m_rel_metas) {
+    if (rel_meta.key == rel_key && rel_meta.type == type &&
+        rel_meta.foreign_table == foreign_table &&
+        rel_meta.foreign_key == foreign_key) {
+      return;
+    }
+  }
+  __NEPTUNE_THROW(exception_type::invalid_argument,
+                  "No relation meta found for key [" + rel_key +
+                      "] and type [" + type + "]");
+}
+
+void neptune::entity::check_expected_rel_meta(
+    const std::string &rel_key, const std::string &type, rel_meta_dir dir,
+    const std::string &foreign_table, const std::string &foreign_key) const {
+  for (const auto &rel_meta : m_rel_metas) {
+    if (rel_meta.key == rel_key && rel_meta.type == type &&
+        rel_meta.dir == dir && rel_meta.foreign_table == foreign_table &&
+        rel_meta.foreign_key == foreign_key) {
+      return;
+    }
+  }
+  __NEPTUNE_THROW(exception_type::invalid_argument,
+                  "No relation meta found for key [" + rel_key +
+                      "] and type [" + type + "]");
 }
 
 // =============================================================================
@@ -208,17 +278,20 @@ void neptune::entity::rel_data::set_undefined() { m_is_undefined = true; }
 
 neptune::entity::rel_data_single::rel_data_single() : m_value() {}
 
-void neptune::entity::rel_data_single::set_value_from_entity(
+void neptune::entity::rel_data_single::set_value(
     const std::shared_ptr<entity> &value) {
   m_value = value;
   m_is_null = false;
   m_is_undefined = false;
 }
 
-std::string neptune::entity::rel_data_single::get_value_as_uuid() const {
+std::string neptune::entity::rel_data_single::get_uuid() const {
   if (m_is_null) {
     return "NULL";
   } else {
+    if (m_value->is_undefined_col("__protected_uuid"))
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Relation entity not instantiated");
     return m_value->get_col_data_as_string("__protected_uuid");
   }
 }
@@ -228,24 +301,39 @@ neptune::entity::rel_data_single::get_value() const {
   return m_value;
 }
 
+void neptune::entity::rel_data_single::set_target_uuid(
+    const std::string &target_uuid) {
+  m_target_uuid = target_uuid;
+}
+
+std::string neptune::entity::rel_data_single::get_target_uuid() const {
+  return m_target_uuid;
+}
+
 // =============================================================================
 // neptune::entity::rel_data_multiple ==========================================
 // =============================================================================
 
 neptune::entity::rel_data_multiple::rel_data_multiple() : m_value() {}
 
-void neptune::entity::rel_data_multiple::set_value_from_entities(
+void neptune::entity::rel_data_multiple::set_value(
     const std::vector<std::shared_ptr<entity>> &value) {
   m_value = value;
 }
 
-std::vector<std::string>
-neptune::entity::rel_data_multiple::get_value_as_uuids() const {
-  std::vector<std::string> uuids;
-  for (const auto &entity : m_value) {
-    uuids.push_back(entity->get_col_data_as_string("__protected_uuid"));
+std::vector<std::string> neptune::entity::rel_data_multiple::get_uuid() const {
+  if (m_is_null) {
+    return {};
+  } else {
+    std::vector<std::string> uuids;
+    for (const auto &entity : m_value) {
+      if (entity->is_undefined_col("__protected_uuid"))
+        __NEPTUNE_THROW(exception_type::invalid_argument,
+                        "Relation entity not instantiated");
+      uuids.push_back(entity->get_col_data_as_string("__protected_uuid"));
+    }
+    return uuids;
   }
-  return uuids;
 }
 
 std::vector<std::shared_ptr<neptune::entity>>
@@ -258,11 +346,12 @@ neptune::entity::rel_data_multiple::get_value() const {
 // =============================================================================
 
 neptune::entity::rel_meta::rel_meta(std::string key_, std::string type_,
-                                    std::string dir_, std::string foreign_key_,
-                                    std::shared_ptr<entity> foreign_entity_)
-    : key(std::move(key_)), type(std::move(type_)), dir(std::move(dir_)),
-      foreign_key(std::move(foreign_key_)),
-      foreign_entity(std::move(foreign_entity_)) {}
+                                    rel_meta_dir dir_,
+                                    std::string foreign_table_,
+                                    std::string foreign_key_)
+    : key(std::move(key_)), type(std::move(type_)), dir(dir_),
+      foreign_table(std::move(foreign_table_)),
+      foreign_key(std::move(foreign_key_)) {}
 
 // =============================================================================
 // neptune::entity::column =====================================================
@@ -341,12 +430,14 @@ neptune::entity::column_primary_generated_uint32::
 
 std::uint32_t
 neptune::entity::column_primary_generated_uint32::get_value() const {
-  auto it = m_container_ref.find(m_col_name);
-  if (it == m_container_ref.end()) {
-    __NEPTUNE_THROW(neptune::exception_type::runtime_error,
-                    "column [" + m_col_name + "] is undefined");
+  if (is_undefined()) {
+    __NEPTUNE_THROW(exception_type::runtime_error,
+                    "Column [" + m_col_name + "] is undefined");
+  } else {
+    return std::dynamic_pointer_cast<col_data_uint32>(
+               m_container_ref.at(m_col_name))
+        ->get_value();
   }
-  return std::dynamic_pointer_cast<col_data_uint32>(it->second)->get_value();
 }
 
 void neptune::entity::column_primary_generated_uint32::set_value(
@@ -457,4 +548,16 @@ neptune::entity::relation::operator bool() const {
   if (is_null())
     return false;
   return true;
+}
+
+void neptune::entity::relation::insert_single_to_container_if_necessary() {
+  if (m_container_ref.find(m_rel_key) == m_container_ref.end()) {
+    m_container_ref.emplace(m_rel_key, std::make_shared<rel_data_single>());
+  }
+}
+
+void neptune::entity::relation::insert_multiple_to_container_if_necessary() {
+  if (m_container_ref.find(m_rel_key) == m_container_ref.end()) {
+    m_container_ref.emplace(m_rel_key, std::make_shared<rel_data_multiple>());
+  }
 }

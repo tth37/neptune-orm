@@ -36,13 +36,22 @@ protected:
   std::mutex m_mutex;
   std::atomic<bool> m_should_close;
 
+  static std::string parse_load_one_to_one_relation_sql(
+      const std::string &table, const std::string &key,
+      const std::string &foreign_table, const std::string &foreign_key);
+
 private:
   virtual void execute(const std::string &sql) = 0;
 
   virtual std::vector<std::shared_ptr<entity>>
   execute(const std::string &sql,
           std::function<std::shared_ptr<entity>()> duplicate,
-          const std::set<std::string> &select_cols) = 0;
+          const std::set<std::string> &select_cols,
+          const std::set<std::string> &select_rels) = 0;
+
+  virtual std::vector<std::shared_ptr<entity>>
+  execute(const std::string &sql,
+          std::function<std::shared_ptr<entity>()> duplicate) = 0;
 
   static std::string parse_insert_entity_sql(const std::shared_ptr<entity> &e);
 
@@ -56,6 +65,9 @@ private:
   static std::string parse_update_entity_sql(const std::shared_ptr<entity> &e);
 
   static std::string parse_remove_entity_sql(const std::shared_ptr<entity> &e);
+
+  static std::set<std::string>
+  get_default_select_rels(const std::shared_ptr<entity> &e);
 };
 
 class mariadb_connection : public connection {
@@ -72,7 +84,12 @@ private:
   std::vector<std::shared_ptr<entity>>
   execute(const std::string &sql,
           std::function<std::shared_ptr<entity>()> duplicate,
-          const std::set<std::string> &select_cols) override;
+          const std::set<std::string> &select_cols,
+          const std::set<std::string> &select_rels) override;
+
+  std::vector<std::shared_ptr<entity>>
+  execute(const std::string &sql,
+          std::function<std::shared_ptr<entity>()> duplicate) override;
 };
 
 } // namespace neptune
@@ -85,8 +102,9 @@ std::shared_ptr<T> neptune::connection::insert(const std::shared_ptr<T> &e) {
   execute(sql);
   sql = parse_query_last_insert_entity_sql(e, uuid);
   std::set<std::string> select_cols;
+  std::set<std::string> select_rels = get_default_select_rels(e);
   auto inserted_e = execute(
-      sql, []() { return std::make_shared<T>(); }, select_cols);
+      sql, []() { return std::make_shared<T>(); }, select_cols, select_rels);
   if (inserted_e.size() != 1) {
     __NEPTUNE_THROW(exception_type::runtime_error, "Insert failed");
   }

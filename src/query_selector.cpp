@@ -107,6 +107,20 @@ neptune::query_selector::select(const std::vector<std::string> &col_names) {
   return *this;
 }
 
+neptune::query_selector &
+neptune::query_selector::relation(const std::string &rel_key) {
+  m_select_rels.insert(rel_key);
+  return *this;
+}
+
+neptune::query_selector &
+neptune::query_selector::relation(const std::vector<std::string> &rel_keys) {
+  for (const auto &rel_key : rel_keys) {
+    m_select_rels.insert(rel_key);
+  }
+  return *this;
+}
+
 std::shared_ptr<neptune::query_selector::_where_clause_tree_node>
 neptune::query_selector::or_(
     const std::shared_ptr<query_selector::_where_clause_tree_node> &left,

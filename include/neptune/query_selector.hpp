@@ -37,7 +37,7 @@ private:
 
   std::shared_ptr<_where_clause_tree_node> m_where_clause_root;
   std::vector<_order_by_clause> m_order_by_clauses;
-  std::set<std::string> m_select_cols;
+  std::set<std::string> m_select_cols, m_select_rels;
   std::size_t m_limit, m_offset;
   bool m_has_limit, m_has_offset, m_confirm_no_where;
 
@@ -79,6 +79,10 @@ public:
   query_selector &select(const std::string &col_name);
 
   query_selector &select(const std::vector<std::string> &col_names);
+
+  query_selector &relation(const std::string &rel_key);
+
+  query_selector &relation(const std::vector<std::string> &rel_keys);
 
   static std::shared_ptr<query_selector::_where_clause_tree_node>
   or_(const std::shared_ptr<query_selector::_where_clause_tree_node> &left,
