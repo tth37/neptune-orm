@@ -113,7 +113,6 @@ private:
   class rel_data_single : public rel_data {
   private:
     std::shared_ptr<entity> m_value;
-    std::string m_target_uuid;
 
   public:
     rel_data_single();
@@ -123,10 +122,6 @@ private:
     [[nodiscard]] std::string get_uuid() const;
 
     [[nodiscard]] std::shared_ptr<entity> get_value() const;
-
-    void set_target_uuid(const std::string &target_uuid);
-
-    [[nodiscard]] std::string get_target_uuid() const;
   };
 
   class rel_data_multiple : public rel_data {
@@ -158,16 +153,10 @@ private:
 
   void set_col_data_undefined(const std::string &col_name);
 
-  void set_rel_target_uuid(const std::string &rel_key,
-                           const std::string &target_uuid);
-
   void set_rel_data_null(const std::string &rel_key);
 
   void set_rel_data_from_entity(const std::string &rel_key,
                                 const std::shared_ptr<entity> &value);
-
-  [[nodiscard]] std::string
-  get_rel_target_uuid(const std::string &rel_key) const;
 
   [[nodiscard]] std::string
   get_col_data_as_string(const std::string &col_name) const;
@@ -344,9 +333,9 @@ std::shared_ptr<T> neptune::entity::relation_one_to_one<T>::get_value() const {
     __NEPTUNE_THROW(exception_type::runtime_error,
                     "Relation [" + m_rel_key + "] is undefined");
   } else {
-    return std::static_pointer_cast<rel_data_single>(
-               m_container_ref.at(m_rel_key))
-        ->get_value();
+    return std::static_pointer_cast<T>(
+        std::static_pointer_cast<rel_data_single>(m_container_ref.at(m_rel_key))
+            ->get_value());
   }
 }
 

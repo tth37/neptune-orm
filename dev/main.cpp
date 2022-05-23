@@ -181,7 +181,9 @@ int main() {
     student->name.set_value("student");
     auto inserted_student = conn->insert(student);
 
-    std::cout << inserted_student->teacher.get_value()->name.get_value() << std::endl;
+    std::cout << "FUCK" << std::endl;
+    std::cout << inserted_student->teacher.get_value()->name.get_value()
+              << std::endl;
   } catch (neptune::exception &e) {
     std::cout << e.message() << std::endl;
   }

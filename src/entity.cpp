@@ -62,12 +62,6 @@ void neptune::entity::set_col_data_undefined(const std::string &col_name) {
   m_col_container.at(col_name)->set_undefined();
 }
 
-void neptune::entity::set_rel_target_uuid(const std::string &rel_key,
-                                          const std::string &target_uuid) {
-  std::static_pointer_cast<rel_data_single>(m_rel_container.at(rel_key))
-      ->set_target_uuid(target_uuid);
-}
-
 void neptune::entity::set_rel_data_null(const std::string &rel_key) {
   m_rel_container.at(rel_key)->set_null();
 }
@@ -76,12 +70,6 @@ void neptune::entity::set_rel_data_from_entity(
     const std::string &rel_key, const std::shared_ptr<entity> &value) {
   std::static_pointer_cast<rel_data_single>(m_rel_container.at(rel_key))
       ->set_value(value);
-}
-
-std::string
-neptune::entity::get_rel_target_uuid(const std::string &rel_key) const {
-  return std::static_pointer_cast<rel_data_single>(m_rel_container.at(rel_key))
-      ->get_target_uuid();
 }
 
 std::string neptune::entity::get_primary_col_name() const {
@@ -301,15 +289,6 @@ neptune::entity::rel_data_single::get_value() const {
   return m_value;
 }
 
-void neptune::entity::rel_data_single::set_target_uuid(
-    const std::string &target_uuid) {
-  m_target_uuid = target_uuid;
-}
-
-std::string neptune::entity::rel_data_single::get_target_uuid() const {
-  return m_target_uuid;
-}
-
 // =============================================================================
 // neptune::entity::rel_data_multiple ==========================================
 // =============================================================================
@@ -496,6 +475,7 @@ neptune::entity::column_varchar::column_varchar(neptune::entity *this_ptr,
 }
 
 std::string neptune::entity::column_varchar::get_value() const {
+  __NEPTUNE_LOG(debug, "Fuck you");
   if (is_undefined()) {
     __NEPTUNE_THROW(exception_type::runtime_error,
                     "Column [" + m_col_name + "] is undefined");

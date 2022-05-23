@@ -178,7 +178,6 @@ void neptune::mariadb_connection::execute(const std::string &sql) {
   if (m_should_close) {
     __NEPTUNE_THROW(exception_type::runtime_error, "Connection already closed");
   }
-  std::unique_lock<std::mutex> lock(m_mutex);
   try {
     auto stmt = m_conn->createStatement();
     __NEPTUNE_LOG(debug, "Executing SQL: {" + sql + "}");
@@ -196,7 +195,6 @@ neptune::mariadb_connection::execute(
   if (m_should_close) {
     __NEPTUNE_THROW(exception_type::runtime_error, "Connection already closed");
   }
-  // std::unique_lock<std::mutex> lock(m_mutex);
   try {
     auto stmt = m_conn->createStatement();
     __NEPTUNE_LOG(debug, "Executing SQL: {" + sql + "}");
@@ -216,7 +214,6 @@ neptune::mariadb_connection::execute(
         else
           e->set_col_data_null(col_meta.name);
       }
-      __NEPTUNE_LOG(debug, "finished load normal cols");
       // load one_to_one relations
       for (const auto &rel_meta : e->get_rel_metas()) {
         if (select_rels.find(rel_meta.key) == select_rels.end()) {
@@ -231,12 +228,13 @@ neptune::mariadb_connection::execute(
                         rel_meta.foreign_table, rel_meta.foreign_key),
                     duplicate);
         if (foreign_entity.empty()) {
+          __NEPTUNE_LOG(warn, "Relation not found: " + rel_meta.key);
           e->set_rel_data_null(rel_meta.key);
         } else {
+          __NEPTUNE_LOG(debug, "not empty");
           e->set_rel_data_from_entity(rel_meta.key, foreign_entity[0]);
         }
       }
-      __NEPTUNE_LOG(debug, "finished load one_to_one relations");
       ret.push_back(e);
     }
     return ret;
