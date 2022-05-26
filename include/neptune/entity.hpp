@@ -179,13 +179,12 @@ private:
 protected:
   class column {
   public:
-    column(entity *this_ptr, std::string col_name, bool is_nullable,
-           bool is_primary);
+    column(entity *this_ptr, std::string col_name);
     virtual ~column() = default;
     column(const column &rhs) = delete;
     column &operator=(const column &rhs) = delete;
-    std::string get_col_name() const;
-    bool is_null() const;
+    [[nodiscard]] std::string get_col_name() const;
+    [[nodiscard]] bool is_null() const;
     void set_null();
     bool is_undefined() const;
     void set_undefined();
@@ -193,6 +192,7 @@ protected:
   protected:
     std::string m_col_name;
     std::map<std::string, std::shared_ptr<col_data>> &m_container_ref;
+    std::vector<col_meta> &m_metas_ref;
   };
 
 protected:
@@ -200,7 +200,7 @@ protected:
   public:
     column_primary_generated_uint32(entity *this_ptr, std::string col_name);
     ~column_primary_generated_uint32() override = default;
-    std::uint32_t get_value() const;
+    [[nodiscard]] std::uint32_t get_value() const;
     void set_value(std::uint32_t value);
   };
 
@@ -210,16 +210,19 @@ protected:
     column_varchar(entity *this_ptr, std::string col_name, bool is_nullable,
                    std::size_t max_length);
     ~column_varchar() override = default;
-    std::string get_value() const;
-    void set_value(std::string value);
+    [[nodiscard]] std::string get_value() const;
+    void set_value(const std::string &value);
 
   private:
     std::size_t m_max_length;
   };
 
 public:
-  entity(std::string table_name);
+  explicit entity(std::string table_name);
   entity(const entity &rhs) = delete;
+
+private:
+  column_varchar uuid{this, "uuid", false, 36};
 };
 
 }; // namespace neptune

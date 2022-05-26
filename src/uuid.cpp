@@ -1,4 +1,4 @@
-#include "neptune/utils/utils.hpp"
+#include "neptune/utils/uuid.hpp"
 #include <random>
 
 std::string neptune::utils::uuid(std::size_t length) {

@@ -4,7 +4,7 @@
 #include "neptune/entity.hpp"
 #include "neptune/query_selector.hpp"
 #include "neptune/utils/exception.hpp"
-#include "neptune/utils/utils.hpp"
+#include "neptune/utils/uuid.hpp"
 #include <functional>
 #include <mariadb/conncpp/Connection.hpp>
 #include <mutex>
