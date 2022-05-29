@@ -148,8 +148,8 @@ public:
   teacher_entity() : entity("teacher") {}
   column_primary_generated_uint32 id{this, "id"};
   column_varchar name{this, "name", false, 32};
-  relation_one_to_one<student_entity> student{this, "student", left, "student",
-                                              "teacher"};
+  relation_1to1<student_entity> student{this, "student", left, "student",
+                                        "teacher"};
 };
 
 class student_entity : public entity {
@@ -157,18 +157,23 @@ public:
   student_entity() : entity("student") {}
   column_primary_generated_uint32 id{this, "id"};
   column_varchar name{this, "name", false, 32};
-  relation_one_to_one<teacher_entity> teacher{this, "teacher", right, "teacher",
-                                              "student"};
+  relation_1to1<teacher_entity> teacher{this, "teacher", right, "teacher",
+                                        "student"};
 };
 
 int main() {
   // use neptune default logger
   use_logger();
 
+  query_selector selector;
+  selector.where(query_selector::or_(
+      query_selector::or_({{"id", "=", 1}}, {{"id", "=", 3}}),
+      {{"id", "=", 2}}));
+
   try {
     // initialize mariadb_driver and register user_entity
     auto driver =
-        use_mariadb_driver("127.0.0.1", 3306, "root", "root", "desdfmdo",
+        use_mariadb_driver("127.0.0.1", 3306, "root", "root", "dessdsdfmdo",
                            {std::make_shared<student_entity>(),
                             std::make_shared<teacher_entity>()});
     auto conn = driver->create_connection();
@@ -177,13 +182,6 @@ int main() {
     teacher->name.set_value("teacher");
     auto inserted_teacher = conn->insert(teacher);
 
-    student->teacher.set_value(inserted_teacher);
-    student->name.set_value("student");
-    auto inserted_student = conn->insert(student);
-
-    std::cout << "FUCK" << std::endl;
-    std::cout << inserted_student->teacher.get_value()->name.get_value()
-              << std::endl;
   } catch (neptune::exception &e) {
     std::cout << e.message() << std::endl;
   }

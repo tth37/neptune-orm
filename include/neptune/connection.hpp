@@ -4,6 +4,7 @@
 #include "neptune/entity.hpp"
 #include "neptune/query_selector.hpp"
 #include "neptune/utils/exception.hpp"
+#include "neptune/utils/parser.hpp"
 #include "neptune/utils/uuid.hpp"
 #include <functional>
 #include <mariadb/conncpp/Connection.hpp>
@@ -13,142 +14,78 @@
 namespace neptune {
 
 class connection {
+  /**
+   * class connection
+   * An abstract class to interact with database.
+   *
+   * Virtual function "exec" is used to execute SQL statements, and virtual
+   * function "fetch" is used to fetch data from database.
+   */
+private:
+  virtual void exec(const std::string &sql) = 0;
+  virtual std::vector<std::shared_ptr<entity>>
+  fetch(const std::string &sql,
+        std::function<std::shared_ptr<entity>()> duplicate,
+        const std::set<std::string> &select_set) = 0;
+
 public:
-  connection();
-
+  connection() = default;
   virtual ~connection() = default;
-
-  static query_selector query();
-
   template <typename T> std::shared_ptr<T> insert(const std::shared_ptr<T> &e);
-
   template <typename T>
   std::vector<std::shared_ptr<T>> select(const query_selector &selector);
-
-  template <typename T>
-  std::shared_ptr<T> select_one(const query_selector &selector);
-
   template <typename T> void update(const std::shared_ptr<T> &e);
-
   template <typename T> void remove(const std::shared_ptr<T> &e);
-
-protected:
-  std::mutex m_mutex;
-  std::atomic<bool> m_should_close;
-
-  static std::string parse_load_one_to_one_relation_sql(
-      const std::string &table, const std::string &key,
-      const std::string &foreign_table, const std::string &foreign_key);
-
-private:
-  virtual void execute(const std::string &sql) = 0;
-
-  virtual std::vector<std::shared_ptr<entity>>
-  execute(const std::string &sql,
-          std::function<std::shared_ptr<entity>()> duplicate,
-          const std::set<std::string> &select_cols,
-          const std::set<std::string> &select_rels) = 0;
-
-  virtual std::vector<std::shared_ptr<entity>>
-  execute(const std::string &sql,
-          std::function<std::shared_ptr<entity>()> duplicate) = 0;
-
-  static std::string parse_insert_entity_sql(const std::shared_ptr<entity> &e);
-
-  static std::string
-  parse_query_last_insert_entity_sql(const std::shared_ptr<entity> &e,
-                                     const std::string &uuid);
-
-  static std::string parse_select_entities_sql(const std::shared_ptr<entity> &e,
-                                               const query_selector &selector);
-
-  static std::string parse_update_entity_sql(const std::shared_ptr<entity> &e);
-
-  static std::string parse_remove_entity_sql(const std::shared_ptr<entity> &e);
-
-  static std::set<std::string>
-  get_default_select_rels(const std::shared_ptr<entity> &e);
 };
 
 class mariadb_connection : public connection {
-public:
-  explicit mariadb_connection(std::shared_ptr<sql::Connection> conn);
-
-  ~mariadb_connection() override;
-
 private:
   std::shared_ptr<sql::Connection> m_conn;
-
-  void execute(const std::string &sql) override;
-
+  void exec(const std::string &sql) override;
   std::vector<std::shared_ptr<entity>>
-  execute(const std::string &sql,
-          std::function<std::shared_ptr<entity>()> duplicate,
-          const std::set<std::string> &select_cols,
-          const std::set<std::string> &select_rels) override;
+  fetch(const std::string &sql,
+        std::function<std::shared_ptr<entity>()> duplicate,
+        const std::set<std::string> &select_set) override;
 
-  std::vector<std::shared_ptr<entity>>
-  execute(const std::string &sql,
-          std::function<std::shared_ptr<entity>()> duplicate) override;
+public:
+  explicit mariadb_connection(std::shared_ptr<sql::Connection> conn);
+  ~mariadb_connection() override = default;
 };
 
 } // namespace neptune
 
+// =============================================================================
+// neptune::connection =========================================================
+// =============================================================================
+
 template <typename T>
 std::shared_ptr<T> neptune::connection::insert(const std::shared_ptr<T> &e) {
-  auto uuid = neptune::utils::uuid();
+  auto uuid = uuid::uuid();
   e->uuid.set_value(uuid);
-  std::string sql = parse_insert_entity_sql(e);
-  execute(sql);
-  sql = parse_query_last_insert_entity_sql(e, uuid);
-  std::set<std::string> select_cols;
-  std::set<std::string> select_rels = get_default_select_rels(e);
-  auto inserted_e = execute(
-      sql, []() { return std::make_shared<T>(); }, select_cols, select_rels);
+  std::string sql = parser::insert_entity(e);
+  exec(sql);
+  sql = parser::query_last_insert_entity(e, uuid);
+  auto inserted_e = fetch(
+      sql, []() { return std::make_shared<T>(); },
+      parser::get_default_select_set(e));
   if (inserted_e.size() != 1) {
     __NEPTUNE_THROW(exception_type::runtime_error, "Insert failed");
   }
-  return std::static_pointer_cast<T>(inserted_e[0]);
+  return std::dynamic_pointer_cast<T>(inserted_e[0]);
 }
 
 template <typename T>
 std::vector<std::shared_ptr<T>>
-neptune::connection::select(const query_selector &selector) {
+neptune::connection::select(const neptune::query_selector &selector) {
   auto e = std::make_shared<T>();
-  auto col_metas = e->get_col_metas();
-  auto select_cols = selector.get_select_cols_set();
-
-  std::string sql = parse_select_entities_sql(e, selector);
-  auto raw_res = execute(
-      sql, []() { return std::make_shared<T>(); }, select_cols);
-
-  std::vector<std::shared_ptr<T>> res;
-  for (auto &r : raw_res) {
-    res.push_back(std::static_pointer_cast<T>(r));
-  }
-  return res;
+  auto select_set = parser::get_select_set(e, selector);
+  std::string sql = parser::select_entities(e, selector);
 }
 
-template <typename T>
-std::shared_ptr<T>
-neptune::connection::select_one(const query_selector &selector) {
-  query_selector new_selector(selector);
-  auto res = select<T>(new_selector.limit(1));
-  if (res.empty())
-    return nullptr;
-  return res[0];
-}
-
-template <typename T>
-void neptune::connection::update(const std::shared_ptr<T> &e) {
-  std::string sql = parse_update_entity_sql(e);
-  execute(sql);
-}
-
-template <typename T>
-void neptune::connection::remove(const std::shared_ptr<T> &e) {
-  std::string sql = parse_remove_entity_sql(e);
-  execute(sql);
-}
+// template <typename T>
+// std::vector<std::shared_ptr<T>>
+// neptune::connection::select(const neptune::query_selector &selector) {
+//   auto e = std::make_shared<T>();
+// }
 
 #endif // NEPTUNEORM_CONNECTION_HPP

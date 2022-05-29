@@ -3,6 +3,7 @@
 
 #include "neptune/utils/exception.hpp"
 #include "neptune/utils/typedefs.hpp"
+
 #include <map>
 #include <memory>
 #include <string>
@@ -16,6 +17,7 @@ class entity {
   friend class driver;
   friend class mariadb_driver;
   friend class query_selector;
+  friend class parser;
 
   /**
    * class col_data
@@ -133,10 +135,10 @@ private:
   };
 
 private:
-  class rel_data_1to1 : public rel_data {
+  class rel_1to1_data : public rel_data {
   public:
-    rel_data_1to1();
-    ~rel_data_1to1() override = default;
+    rel_1to1_data();
+    ~rel_1to1_data() override = default;
     std::shared_ptr<entity> get_entity();
     void set_entity(std::shared_ptr<entity> entity);
 
@@ -145,7 +147,22 @@ private:
   };
 
   /**
-   * struct rel_meta_1to1
+   * setters and getters for rel_1to1_data
+   * Called by connection only.
+   */
+private:
+  void set_rel_1to1_data_from_entity(const std::string &col_name,
+                                     const std::shared_ptr<entity> &e);
+  void set_rel_1to1_data_null(const std::string &col_name);
+  void set_rel_1to1_data_undefined(const std::string &col_name);
+  [[nodiscard]] std::shared_ptr<entity>
+  get_rel_1to1_data_as_entity(const std::string &col_name) const;
+  [[nodiscard]] bool is_rel_1to1_data_null(const std::string &col_name) const;
+  [[nodiscard]] bool
+  is_rel_1to1_data_undefined(const std::string &col_name) const;
+
+  /**
+   * struct rel_1to1_meta
    * A struct to store 1-to-1 relationship meta data.
    */
 private:
@@ -164,7 +181,7 @@ private:
   std::string m_table_name;
   std::map<std::string, std::shared_ptr<col_data>> m_col_container;
   std::vector<col_meta> m_col_metas;
-  std::map<std::string, std::shared_ptr<rel_data_1to1>> m_rel_1to1_container;
+  std::map<std::string, std::shared_ptr<rel_1to1_data>> m_rel_1to1_container;
   std::vector<rel_1to1_meta> m_rel_1to1_metas;
 
   /**
@@ -217,14 +234,97 @@ protected:
     std::size_t m_max_length;
   };
 
+protected:
+  class relation {
+  public:
+    relation(std::string rel_key);
+    virtual ~relation() = default;
+    relation(const relation &rhs) = delete;
+    relation &operator=(const relation &rhs) = delete;
+    [[nodiscard]] std::string get_rel_key() const;
+    virtual bool is_null() const = 0;
+    virtual void set_null() = 0;
+    virtual bool is_undefined() const = 0;
+    virtual void set_undefined() = 0;
+
+  protected:
+    std::string m_rel_key;
+  };
+
+protected:
+  template <class T> class relation_1to1 : public relation {
+  public:
+    relation_1to1(entity *this_ptr, std::string rel_key, rel_dir dir,
+                  std::string foreign_table, std::string foreign_key);
+    ~relation_1to1() override = default;
+    bool is_null() const override;
+    void set_null() override;
+    bool is_undefined() const override;
+    void set_undefined() override;
+    [[nodiscard]] std::shared_ptr<T> get_entity() const;
+    void set_entity(std::shared_ptr<T> entity);
+
+  private:
+    std::shared_ptr<T> m_entity;
+    std::map<std::string, std::shared_ptr<rel_1to1_data>> &m_container_ref;
+    std::vector<rel_1to1_meta> &m_metas_ref;
+  };
+
 public:
   explicit entity(std::string table_name);
-  entity(const entity &rhs) = delete;
+  virtual ~entity() = default;
+  // entity(const entity &rhs) = delete;
 
 private:
-  column_varchar uuid{this, "uuid", false, 36};
+  column_varchar uuid{this, "__protected_uuid", false, 36};
+
+private:
+  std::string get_table_name() const;
 };
 
-}; // namespace neptune
+} // namespace neptune
+
+// =============================================================================
+// neptune::entity::relation_1to1 ==============================================
+// =============================================================================
+
+template <class T>
+neptune::entity::relation_1to1<T>::relation_1to1(entity *this_ptr,
+                                                 std::string rel_key,
+                                                 rel_dir dir,
+                                                 std::string foreign_table,
+                                                 std::string foreign_key)
+    : relation(rel_key), m_container_ref(this_ptr->m_rel_1to1_container),
+      m_metas_ref(this_ptr->m_rel_1to1_metas) {
+  m_container_ref.emplace(rel_key, std::make_shared<rel_1to1_data>());
+  m_metas_ref.emplace_back(rel_key, foreign_table, foreign_key, dir);
+}
+
+template <class T> bool neptune::entity::relation_1to1<T>::is_null() const {
+  return m_container_ref.at(m_rel_key)->is_null();
+}
+
+template <class T> void neptune::entity::relation_1to1<T>::set_null() {
+  m_container_ref.at(m_rel_key)->set_null();
+}
+
+template <class T>
+bool neptune::entity::relation_1to1<T>::is_undefined() const {
+  return m_container_ref.at(m_rel_key)->is_undefined();
+}
+
+template <class T> void neptune::entity::relation_1to1<T>::set_undefined() {
+  m_container_ref.at(m_rel_key)->set_undefined();
+}
+
+template <class T>
+std::shared_ptr<T> neptune::entity::relation_1to1<T>::get_entity() const {
+  return m_container_ref.at(m_rel_key)->get_entity();
+}
+
+template <class T>
+void neptune::entity::relation_1to1<T>::set_entity(std::shared_ptr<T> entity) {
+  m_container_ref.at(m_rel_key)->set_entity(entity);
+}
 
 #endif // NEPTUNEORM_ENTITY_HPP

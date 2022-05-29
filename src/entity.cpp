@@ -11,6 +11,8 @@
 neptune::entity::entity(std::string table_name)
     : m_table_name(std::move(table_name)) {}
 
+std::string neptune::entity::get_table_name() const { return m_table_name; }
+
 // =============================================================================
 //  neptune::entity::col_data ==================================================
 // =============================================================================
@@ -145,16 +147,43 @@ bool neptune::entity::rel_data::is_undefined() const { return m_is_undefined; }
 
 void neptune::entity::rel_data::set_undefined() { m_is_undefined = true; }
 
-neptune::entity::rel_data_1to1::rel_data_1to1()
+neptune::entity::rel_1to1_data::rel_1to1_data()
     : rel_data(), m_entity(nullptr) {}
 
-std::shared_ptr<neptune::entity> neptune::entity::rel_data_1to1::get_entity() {
+std::shared_ptr<neptune::entity> neptune::entity::rel_1to1_data::get_entity() {
   return m_entity;
 }
 
-void neptune::entity::rel_data_1to1::set_entity(
+void neptune::entity::rel_1to1_data::set_entity(
     std::shared_ptr<entity> entity) {
   m_entity = std::move(entity);
+}
+
+void neptune::entity::set_rel_1to1_data_from_entity(
+    const std::string &col_name, const std::shared_ptr<entity> &e) {
+  m_rel_1to1_container[col_name]->set_entity(e);
+}
+
+void neptune::entity::set_rel_1to1_data_null(const std::string &col_name) {
+  m_rel_1to1_container[col_name]->set_null();
+}
+
+void neptune::entity::set_rel_1to1_data_undefined(const std::string &col_name) {
+  m_rel_1to1_container[col_name]->set_undefined();
+}
+
+std::shared_ptr<neptune::entity> neptune::entity::get_rel_1to1_data_as_entity(
+    const std::string &col_name) const {
+  return m_rel_1to1_container.at(col_name)->get_entity();
+}
+
+bool neptune::entity::is_rel_1to1_data_null(const std::string &col_name) const {
+  return m_rel_1to1_container.at(col_name)->is_null();
+}
+
+bool neptune::entity::is_rel_1to1_data_undefined(
+    const std::string &col_name) const {
+  return m_rel_1to1_container.at(col_name)->is_undefined();
 }
 
 // =============================================================================
@@ -255,3 +284,12 @@ void neptune::entity::column_varchar::set_value(const std::string &value) {
   std::dynamic_pointer_cast<col_data_string>(m_container_ref[m_col_name])
       ->set_value(value);
 }
+
+// =============================================================================
+// neptune::entity::relation ===================================================
+// =============================================================================
+
+neptune::entity::relation::relation(std::string rel_key)
+    : m_rel_key(std::move(rel_key)) {}
+
+std::string neptune::entity::relation::get_rel_key() const { return m_rel_key; }

@@ -1,7 +1,7 @@
 #include "neptune/utils/uuid.hpp"
 #include <random>
 
-std::string neptune::utils::uuid(std::size_t length) {
+std::string neptune::uuid::uuid(std::size_t length) {
   std::string uuid;
   uuid.reserve(length);
 
