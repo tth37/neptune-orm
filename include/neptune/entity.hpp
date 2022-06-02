@@ -153,6 +153,9 @@ private:
 private:
   void set_rel_1to1_data_from_entity(const std::string &col_name,
                                      const std::shared_ptr<entity> &e);
+  void set_rel_1to1_data_from_entities(
+      const std::string &col_name,
+      const std::vector<std::shared_ptr<entity>> &es);
   void set_rel_1to1_data_null(const std::string &col_name);
   void set_rel_1to1_data_undefined(const std::string &col_name);
   [[nodiscard]] std::shared_ptr<entity>

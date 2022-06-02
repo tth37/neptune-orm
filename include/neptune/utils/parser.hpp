@@ -32,6 +32,10 @@ private:
                                         const std::string &key,
                                         const std::string &foreign_table,
                                         const std::string &foreign_key);
+  static std::string select_entities(const std::shared_ptr<entity> &e,
+                                     const query_selector &selector);
+  static std::string select_columns(const std::shared_ptr<entity> &e,
+                                    const std::set<std::string> &select_set);
 };
 
 } // namespace neptune

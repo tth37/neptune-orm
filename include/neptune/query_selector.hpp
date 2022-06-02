@@ -71,6 +71,11 @@ private:
     std::shared_ptr<where_clause_tree_node> node;
   };
 
+private:
+  [[nodiscard]] std::string dfs_parse_where_clause_tree(
+      const std::shared_ptr<where_clause_tree_node> &node,
+      const std::set<std::string> &col_names) const;
+
 public:
   query_selector();
   query_selector(const query_selector &rhs) = default;

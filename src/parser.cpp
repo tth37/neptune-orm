@@ -51,7 +51,8 @@ neptune::parser::get_select_set(const std::shared_ptr<entity> &e,
   for (const auto &rel_1to1_meta : e->iter_rel_1to1_metas()) {
     if (selector.m_select_cols.find(rel_1to1_meta.key) !=
         selector.m_select_cols.end())
-      res.insert(rel_1to1_meta.key);
+      if (rel_1to1_meta.dir == left)
+        res.insert(rel_1to1_meta.key);
   }
   return res;
 }
@@ -113,4 +114,67 @@ std::string neptune::parser::load_1to1_relation(
                     table + "` ON `" + foreign_table + "`.`" + foreign_key +
                     "` = `" + table + "`.`" + key + "`";
   return sql;
+}
+
+std::string neptune::parser::select_entities(const std::shared_ptr<entity> &e,
+                                             const query_selector &selector) {
+  std::set<std::string> col_names;
+  for (const auto &col_meta : e->iter_col_metas()) {
+    col_names.insert(col_meta.name);
+  }
+  std::string res;
+
+  if (selector.m_where_clause_root != nullptr) {
+    res += " WHERE ";
+    res += selector.dfs_parse_where_clause_tree(selector.m_where_clause_root,
+                                                col_names);
+  }
+
+  if (!selector.m_order_by_clauses.empty()) {
+    res += " ORDER BY ";
+    for (std::size_t i = 0; i < selector.m_order_by_clauses.size(); ++i) {
+      auto &order_by_clause = selector.m_order_by_clauses[i];
+      if (i != 0) {
+        res += ", ";
+      }
+      res += order_by_clause.col + " " +
+             (order_by_clause.dir == asc ? "ASC" : "DESC");
+      if (col_names.find(order_by_clause.col) == col_names.end()) {
+        __NEPTUNE_THROW(exception_type::invalid_argument,
+                        "Invalid column name in query_selector: [" +
+                            order_by_clause.col + "]");
+      }
+    }
+  }
+
+  if (selector.m_has_limit) {
+    res += " LIMIT " + std::to_string(selector.m_limit);
+  }
+
+  if (selector.m_has_offset) {
+    res += " OFFSET " + std::to_string(selector.m_offset);
+  }
+
+  return res;
+}
+
+std::string
+neptune::parser::select_columns(const std::shared_ptr<entity> &e,
+                                const std::set<std::string> &select_set) {
+  if (select_set.empty()) {
+    return "*";
+  }
+
+  // construct sql string
+  std::string res;
+  bool is_first = true;
+  for (const auto &col_name : select_set) {
+    if (is_first)
+      is_first = false;
+    else
+      res += ", ";
+    res += "`" + col_name + "`";
+  }
+
+  return res;
 }

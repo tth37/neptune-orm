@@ -202,3 +202,38 @@ std::shared_ptr<neptune::query_selector::where_clause_tree_node>
 neptune::query_selector::where_clause_tree_node_helper::get() const {
   return node;
 }
+
+std::string neptune::query_selector::dfs_parse_where_clause_tree(
+    const std::shared_ptr<where_clause_tree_node> &node,
+    const std::set<std::string> &col_names) const {
+  std::string res;
+  if (node->left == nullptr && node->right == nullptr) {
+    res += "`" + node->clause.col + "` " + node->clause.op + " " +
+           node->clause.val;
+    if (col_names.find(node->clause.col) == col_names.end()) {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Invalid column name in query_selector: [" +
+                          node->clause.col + "]");
+    }
+    if (node->clause.op != "=" && node->clause.op != "!=" &&
+        node->clause.op != ">" && node->clause.op != "<" &&
+        node->clause.op != ">=" && node->clause.op != "<=") {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Invalid operator in query_selector: [" +
+                          node->clause.op + "]");
+    }
+  } else {
+    res += "(";
+    res += dfs_parse_where_clause_tree(node->left, col_names);
+    res += " " + node->op + " ";
+    res += dfs_parse_where_clause_tree(node->right, col_names);
+    res += ")";
+    if (node->op != "AND" && node->op != "OR" && node->op != "and" &&
+        node->op != "or") {
+      __NEPTUNE_THROW(exception_type::invalid_argument,
+                      "Invalid logic operator in query_selector: [" + node->op +
+                          "]");
+    }
+  }
+  return res;
+}
