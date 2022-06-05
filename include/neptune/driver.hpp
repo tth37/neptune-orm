@@ -12,14 +12,16 @@ namespace neptune {
 class driver {
 public:
   explicit driver(std::string db_name);
-
   virtual ~driver() = default;
-
   void register_entity(const std::shared_ptr<entity> &e);
-
   virtual void initialize() = 0;
-
   virtual std::shared_ptr<connection> create_connection() = 0;
+
+protected:
+  void check_duplicated_table_names();
+  void check_duplicated_col_rel_names();
+  void check_primary_key_count();
+  void check_1to1_relations();
 
 protected:
   std::vector<std::shared_ptr<neptune::entity>> m_entities;
@@ -30,11 +32,8 @@ class mariadb_driver : public driver {
 public:
   mariadb_driver(std::string url, std::uint32_t port, std::string user,
                  std::string password, std::string db_name);
-
   ~mariadb_driver() override = default;
-
   void initialize() override;
-
   std::shared_ptr<connection> create_connection() override;
 
 private:
@@ -46,7 +45,7 @@ private:
 std::shared_ptr<driver>
 use_mariadb_driver(std::string url, std::uint32_t port, std::string user,
                    std::string password, std::string db_name,
-                   std::vector<std::shared_ptr<entity>> entities);
+                   const std::vector<std::shared_ptr<entity>> &entities);
 
 } // namespace neptune
 

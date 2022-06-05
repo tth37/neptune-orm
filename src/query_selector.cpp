@@ -1,53 +1,24 @@
 #include "neptune/query_selector.hpp"
 #include "neptune/utils/exception.hpp"
-
-// =============================================================================
-// neptune::query_selector::_where_clause ======================================
-// =============================================================================
-
-neptune::query_selector::_where_clause::_where_clause(std::string col_,
-                                                      std::string op_,
-                                                      std::string val_)
-    : col(std::move(col_)), op(std::move(op_)),
-      val("\"" + std::move(val_) + "\"") {}
-
-neptune::query_selector::_where_clause::_where_clause(std::string col_,
-                                                      std::string op_,
-                                                      int32_t val_)
-    : col(std::move(col_)), op(std::move(op_)), val(std::to_string(val_)) {}
-
-neptune::query_selector::_where_clause::_where_clause()
-    : _where_clause("", "", "") {}
-
-// =============================================================================
-// neptune::query_selector::_where_clause_tree_node ============================
-// =============================================================================
-
-neptune::query_selector::_where_clause_tree_node::_where_clause_tree_node()
-    : op(), left(), right(), clause() {}
+#include <utility>
 
 // =============================================================================
 // neptune::query_selector =====================================================
 // =============================================================================
 
 neptune::query_selector::query_selector()
-    : m_where_clause_root(nullptr), m_order_by_clauses(), m_limit(0),
-      m_offset(0), m_confirm_no_where(false), m_has_limit(false),
-      m_has_offset(false) {}
+    : m_has_limit(false), m_has_offset(false), m_limit(0), m_offset(0) {}
 
-neptune::query_selector &neptune::query_selector::where(
-    const neptune::query_selector::_where_clause &where_clause) {
+neptune::query_selector &
+neptune::query_selector::where(const query_selector::where_clause &clause) {
+  auto helper = where_clause_tree_node_helper(clause);
+  auto node = helper.get();
   if (m_where_clause_root == nullptr) {
-    m_where_clause_root = std::make_shared<_where_clause_tree_node>();
-    m_where_clause_root->clause = where_clause;
+    m_where_clause_root = std::move(node);
   } else {
-    auto new_node = std::make_shared<_where_clause_tree_node>();
-    new_node->clause = where_clause;
-    auto new_root = std::make_shared<_where_clause_tree_node>();
-    new_root->op = "AND";
-    new_root->left = m_where_clause_root;
-    new_root->right = new_node;
-    m_where_clause_root = new_root;
+    auto new_root = std::make_shared<where_clause_tree_node>(
+        "AND", where_clause(), m_where_clause_root, node);
+    m_where_clause_root = std::move(new_root);
   }
   return *this;
 }
@@ -55,102 +26,185 @@ neptune::query_selector &neptune::query_selector::where(
 neptune::query_selector &
 neptune::query_selector::where(const std::string &col, const std::string &op,
                                const std::string &val) {
-  return where({col, op, val});
+  auto clause = where_clause(col, op, val);
+  return where(clause);
 }
 
-neptune::query_selector &neptune::query_selector::where(const std::string &col,
-                                                        const std::string &op,
-                                                        int32_t val) {
-  return where({col, op, val});
+neptune::query_selector &
+neptune::query_selector::where(const std::string &col, const std::string &op,
+                               const std::int32_t &val) {
+  auto clause = where_clause(col, op, val);
+  return where(clause);
+}
+
+neptune::query_selector &
+neptune::query_selector::where(const std::string &col, const std::string &op,
+                               const std::uint32_t &val) {
+  auto clause = where_clause(col, op, val);
+  return where(clause);
 }
 
 neptune::query_selector &neptune::query_selector::where(
-    const std::shared_ptr<_where_clause_tree_node> &where_clause_root) {
-  m_where_clause_root = where_clause_root;
+    const std::shared_ptr<where_clause_tree_node> &root) {
+  auto helper = where_clause_tree_node_helper(root);
+  auto node = helper.get();
+  if (m_where_clause_root == nullptr) {
+    m_where_clause_root = std::move(node);
+  } else {
+    auto new_root = std::make_shared<where_clause_tree_node>(
+        "AND", where_clause(), m_where_clause_root, node);
+    m_where_clause_root = std::move(new_root);
+  }
   return *this;
 }
 
-neptune::query_selector &neptune::query_selector::order_by(
-    neptune::query_selector::_order_by_clause order_by_clause) {
-  m_order_by_clauses.push_back(std::move(order_by_clause));
+neptune::query_selector &
+neptune::query_selector::order_by(const std::string &col,
+                                  neptune::order_dir dir) {
+  m_order_by_clauses.emplace_back(col, dir);
   return *this;
 }
 
 neptune::query_selector &neptune::query_selector::limit(std::size_t limit) {
-  m_limit = limit;
   m_has_limit = true;
+  m_limit = limit;
   return *this;
 }
 
 neptune::query_selector &neptune::query_selector::offset(std::size_t offset) {
-  m_offset = offset;
   m_has_offset = true;
-  return *this;
-}
-
-neptune::query_selector &neptune::query_selector::confirm_no_where() {
-  m_confirm_no_where = true;
+  m_offset = offset;
   return *this;
 }
 
 neptune::query_selector &
 neptune::query_selector::select(const std::string &col_name) {
-  m_select_cols.insert(col_name);
+  m_select_cols.emplace(col_name);
   return *this;
 }
 
 neptune::query_selector &
 neptune::query_selector::select(const std::vector<std::string> &col_names) {
   for (const auto &col_name : col_names) {
-    m_select_cols.insert(col_name);
+    m_select_cols.emplace(col_name);
   }
   return *this;
 }
 
-std::shared_ptr<neptune::query_selector::_where_clause_tree_node>
-neptune::query_selector::or_(
-    const std::shared_ptr<query_selector::_where_clause_tree_node> &left,
-    const std::shared_ptr<query_selector::_where_clause_tree_node> &right) {
-  auto new_root =
-      std::make_shared<neptune::query_selector::_where_clause_tree_node>();
-  new_root->op = "OR";
-  new_root->left = left;
-  new_root->right = right;
-  return new_root;
+neptune::query_selector &
+neptune::query_selector::relation(const std::string &rel_key) {
+  m_select_rels.emplace(rel_key);
+  return *this;
 }
 
-std::shared_ptr<neptune::query_selector::_where_clause_tree_node>
-neptune::query_selector::or_(
-    const std::shared_ptr<query_selector::_where_clause_tree_node> &left,
-    const neptune::query_selector::_where_clause &right_where_clause) {
-  auto new_node =
-      std::make_shared<neptune::query_selector::_where_clause_tree_node>();
-  new_node->clause = right_where_clause;
-  return or_(left, new_node);
+neptune::query_selector &
+neptune::query_selector::relation(const std::vector<std::string> &rel_keys) {
+  for (const auto &rel_key : rel_keys) {
+    m_select_rels.emplace(rel_key);
+  }
+  return *this;
 }
 
-std::shared_ptr<neptune::query_selector::_where_clause_tree_node>
+std::shared_ptr<neptune::query_selector::where_clause_tree_node>
 neptune::query_selector::or_(
-    const neptune::query_selector::_where_clause &left_where_clause,
-    const std::shared_ptr<query_selector::_where_clause_tree_node> &right) {
-  auto new_node =
-      std::make_shared<neptune::query_selector::_where_clause_tree_node>();
-  new_node->clause = left_where_clause;
-  return or_(new_node, right);
+    const neptune::query_selector::where_clause_tree_node_helper &left,
+    const neptune::query_selector::where_clause_tree_node_helper &right) {
+  auto left_node = left.get();
+  auto right_node = right.get();
+  return std::make_shared<where_clause_tree_node>("OR", where_clause(),
+                                                  left_node, right_node);
 }
 
-std::shared_ptr<neptune::query_selector::_where_clause_tree_node>
-neptune::query_selector::or_(
-    const neptune::query_selector::_where_clause &left_where_clause,
-    const neptune::query_selector::_where_clause &right_where_clause) {
-  auto new_node =
-      std::make_shared<neptune::query_selector::_where_clause_tree_node>();
-  new_node->clause = right_where_clause;
-  return or_(left_where_clause, new_node);
+// =============================================================================
+// neptune::query_selector::where_clause =======================================
+// =============================================================================
+
+neptune::query_selector::where_clause::where_clause(std::string col_,
+                                                    std::string op_,
+                                                    std::string val_)
+    : col(std::move(col_)), op(std::move(op_)),
+      val("\"" + std::move(val_) + "\"") {}
+
+neptune::query_selector::where_clause::where_clause(std::string col_,
+                                                    std::string op_,
+                                                    std::int32_t val_)
+    : col(std::move(col_)), op(std::move(op_)), val(std::to_string(val_)) {}
+
+neptune::query_selector::where_clause::where_clause(std::string col_,
+                                                    std::string op_,
+                                                    std::uint32_t val_)
+    : col(std::move(col_)), op(std::move(op_)), val(std::to_string(val_)) {}
+
+neptune::query_selector::where_clause::where_clause()
+    : col(""), op(""), val("") {}
+
+// =============================================================================
+// neptune::query_selector::where_clause_tree_node =============================
+// =============================================================================
+
+neptune::query_selector::where_clause_tree_node::where_clause_tree_node(
+    std::string op_, neptune::query_selector::where_clause clause,
+    std::shared_ptr<where_clause_tree_node> left_,
+    std::shared_ptr<where_clause_tree_node> right_)
+    : op(std::move(op_)), clause(std::move(clause)), left(std::move(left_)),
+      right(std::move(right_)) {}
+
+// =============================================================================
+// neptune::query_selector::order_by_clause ====================================
+// =============================================================================
+
+neptune::query_selector::order_by_clause::order_by_clause(
+    std::string col_, neptune::order_dir dir_)
+    : col(std::move(col_)), dir(dir_) {}
+
+// =============================================================================
+// neptune::query_selector::where_clause_tree_node_helper ======================
+// =============================================================================
+
+neptune::query_selector::where_clause_tree_node_helper::
+    where_clause_tree_node_helper(std::shared_ptr<where_clause_tree_node> node_)
+    : node(std::move(node_)) {}
+
+neptune::query_selector::where_clause_tree_node_helper::
+    where_clause_tree_node_helper(
+        const neptune::query_selector::where_clause &clause_)
+    : node(std::make_shared<where_clause_tree_node>("", clause_, nullptr,
+                                                    nullptr)) {}
+
+neptune::query_selector::where_clause_tree_node_helper::
+    where_clause_tree_node_helper(std::string col_, std::string op_,
+                                  std::string val_)
+    : node(std::make_shared<where_clause_tree_node>(
+          "",
+          neptune::query_selector::where_clause(std::move(col_), std::move(op_),
+                                                std::move(val_)),
+          nullptr, nullptr)) {}
+
+neptune::query_selector::where_clause_tree_node_helper::
+    where_clause_tree_node_helper(std::string col_, std::string op_,
+                                  std::int32_t val_)
+    : node(std::make_shared<where_clause_tree_node>(
+          "",
+          neptune::query_selector::where_clause(std::move(col_), std::move(op_),
+                                                val_),
+          nullptr, nullptr)) {}
+
+neptune::query_selector::where_clause_tree_node_helper::
+    where_clause_tree_node_helper(std::string col_, std::string op_,
+                                  std::uint32_t val_)
+    : node(std::make_shared<where_clause_tree_node>(
+          "",
+          neptune::query_selector::where_clause(std::move(col_), std::move(op_),
+                                                val_),
+          nullptr, nullptr)) {}
+
+std::shared_ptr<neptune::query_selector::where_clause_tree_node>
+neptune::query_selector::where_clause_tree_node_helper::get() const {
+  return node;
 }
 
-std::string neptune::query_selector::_dfs_parse_where_clause_tree(
-    const std::shared_ptr<_where_clause_tree_node> &node,
+std::string neptune::query_selector::dfs_parse_where_clause_tree(
+    const std::shared_ptr<where_clause_tree_node> &node,
     const std::set<std::string> &col_names) const {
   std::string res;
   if (node->left == nullptr && node->right == nullptr) {
@@ -170,9 +224,9 @@ std::string neptune::query_selector::_dfs_parse_where_clause_tree(
     }
   } else {
     res += "(";
-    res += _dfs_parse_where_clause_tree(node->left, col_names);
+    res += dfs_parse_where_clause_tree(node->left, col_names);
     res += " " + node->op + " ";
-    res += _dfs_parse_where_clause_tree(node->right, col_names);
+    res += dfs_parse_where_clause_tree(node->right, col_names);
     res += ")";
     if (node->op != "AND" && node->op != "OR" && node->op != "and" &&
         node->op != "or") {
@@ -184,100 +238,4 @@ std::string neptune::query_selector::_dfs_parse_where_clause_tree(
   return res;
 }
 
-std::string
-neptune::query_selector::parse_where(const std::shared_ptr<entity> &e) const {
-  std::set<std::string> col_names;
-  for (const auto &col_meta : e->get_col_metas()) {
-    col_names.insert(col_meta.name);
-  }
-  std::string res;
-  if (m_where_clause_root != nullptr) {
-    res += " WHERE ";
-    res += _dfs_parse_where_clause_tree(m_where_clause_root, col_names);
-  } else {
-    if (!m_confirm_no_where) {
-      __NEPTUNE_LOG(warn, "You should explicitly specify confirm_no_where when "
-                          "updating or removing without where clause");
-      __NEPTUNE_THROW(exception_type::invalid_argument,
-                      "No where clause in query_selector");
-    }
-  }
-  res += ";";
-  __NEPTUNE_LOG(debug, "Parsed where: " + res);
-  return res;
-}
-
-std::string
-neptune::query_selector::parse_query(const std::shared_ptr<entity> &e) const {
-  std::set<std::string> col_names;
-  for (const auto &col_meta : e->get_col_metas()) {
-    col_names.insert(col_meta.name);
-  }
-  std::string res;
-
-  if (m_where_clause_root != nullptr) {
-    res += " WHERE ";
-    res += _dfs_parse_where_clause_tree(m_where_clause_root, col_names);
-  }
-
-  if (!m_order_by_clauses.empty()) {
-    res += " ORDER BY ";
-    for (std::size_t i = 0; i < m_order_by_clauses.size(); ++i) {
-      auto &order_by_clause = m_order_by_clauses[i];
-      if (i != 0) {
-        res += ", ";
-      }
-      res += order_by_clause.col + " " + order_by_clause.dir;
-      if (col_names.find(order_by_clause.col) == col_names.end()) {
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Invalid column name in query_selector: [" +
-                            order_by_clause.col + "]");
-      }
-      if (order_by_clause.dir != "ASC" && order_by_clause.dir != "DESC") {
-        __NEPTUNE_LOG(
-            warn,
-            "Only \"ASC\" and \"DESC\" are supported for order by clause");
-        __NEPTUNE_THROW(exception_type::invalid_argument,
-                        "Invalid direction in query_selector: [" +
-                            order_by_clause.dir + "]");
-      }
-    }
-  }
-
-  if (m_has_limit) {
-    res += " LIMIT " + std::to_string(m_limit);
-  }
-
-  if (m_has_offset) {
-    res += " OFFSET " + std::to_string(m_offset);
-  }
-
-  return res;
-}
-
-std::string neptune::query_selector::parse_select_cols(
-    const std::shared_ptr<entity> &e) const {
-  std::set<std::string> col_names;
-  for (const auto &col_meta : e->get_col_metas()) {
-    col_names.insert(col_meta.name);
-  }
-  if (m_select_cols.empty())
-    return "*";
-  std::string res;
-  for (const auto &col : m_select_cols) {
-    if (col_names.find(col) == col_names.end()) {
-      __NEPTUNE_THROW(exception_type::invalid_argument,
-                      "Invalid column name in query_selector: [" + col + "]");
-    }
-    if (!res.empty()) {
-      res += ", ";
-    }
-    res += col;
-  }
-  return res;
-}
-
-const std::set<std::string> &
-neptune::query_selector::get_select_cols_set() const {
-  return m_select_cols;
-}
+neptune::query_selector neptune::query_selector::query() { return {}; }
