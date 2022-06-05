@@ -98,6 +98,8 @@ public:
   static std::shared_ptr<where_clause_tree_node>
   or_(const where_clause_tree_node_helper &left,
       const where_clause_tree_node_helper &right);
+
+  static query_selector query();
 };
 
 } // namespace neptune

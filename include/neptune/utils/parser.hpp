@@ -36,6 +36,8 @@ private:
                                      const query_selector &selector);
   static std::string select_columns(const std::shared_ptr<entity> &e,
                                     const std::set<std::string> &select_set);
+  static std::vector<std::string>
+  update_relations(const std::shared_ptr<entity> &e);
 };
 
 } // namespace neptune

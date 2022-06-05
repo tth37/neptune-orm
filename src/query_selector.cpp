@@ -237,3 +237,5 @@ std::string neptune::query_selector::dfs_parse_where_clause_tree(
   }
   return res;
 }
+
+neptune::query_selector neptune::query_selector::query() { return {}; }

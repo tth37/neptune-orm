@@ -65,13 +65,17 @@ std::shared_ptr<T> neptune::connection::insert(const std::shared_ptr<T> &e) {
   std::string sql = parser::insert_entity(e);
   exec(sql);
   sql = parser::query_last_insert_entity(e, uuid);
-  auto inserted_e = fetch(
+  auto inserted_es = fetch(
       sql, []() { return std::make_shared<T>(); },
       parser::get_default_select_set(e));
-  if (inserted_e.size() != 1) {
+  if (inserted_es.size() != 1) {
     __NEPTUNE_THROW(exception_type::runtime_error, "Insert failed");
   }
-  return std::dynamic_pointer_cast<T>(inserted_e[0]);
+  auto inserted_e = inserted_es[0];
+  e->uuid.set_value(inserted_e->uuid.get_value());
+  std::vector<std::string> sqls = parser::update_relations(e);
+
+  return std::dynamic_pointer_cast<T>(inserted_e);
 }
 
 template <typename T>
@@ -80,6 +84,14 @@ neptune::connection::select(const neptune::query_selector &selector) {
   auto e = std::make_shared<T>();
   auto select_set = parser::get_select_set(e, selector);
   std::string sql = parser::select_entities(e, selector);
+  auto raw_entities = fetch(
+      sql, []() { return std::make_shared<T>(); }, select_set);
+
+  std::vector<std::shared_ptr<T>> entities;
+  for (auto &raw_entity : raw_entities) {
+    entities.push_back(std::dynamic_pointer_cast<T>(raw_entity));
+  }
+  return entities;
 }
 
 // template <typename T>

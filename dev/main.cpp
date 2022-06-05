@@ -172,15 +172,17 @@ int main() {
 
   try {
     // initialize mariadb_driver and register user_entity
-    auto driver =
-        use_mariadb_driver("127.0.0.1", 3306, "root", "root", "dessdsdfmdo",
-                           {std::make_shared<student_entity>(),
-                            std::make_shared<teacher_entity>()});
+    auto driver = use_mariadb_driver("127.0.0.1", 3306, "root", "root",
+                                     "dessdddsddddfmdo",
+                                     {std::make_shared<student_entity>(),
+                                      std::make_shared<teacher_entity>()});
     auto conn = driver->create_connection();
     auto teacher = std::make_shared<teacher_entity>();
     auto student = std::make_shared<student_entity>();
     teacher->name.set_value("teacher");
     auto inserted_teacher = conn->insert(teacher);
+    auto result = conn->select<teacher_entity>(
+        query_selector::query().relation("student"));
 
   } catch (neptune::exception &e) {
     std::cout << e.message() << std::endl;

@@ -167,12 +167,11 @@ void neptune::entity::set_rel_1to1_data_from_entity(
 void neptune::entity::set_rel_1to1_data_from_entities(
     const std::string &col_name,
     const std::vector<std::shared_ptr<entity>> &es) {
-  if (es.size() != 1) {
-    __NEPTUNE_THROW(exception_type::runtime_error,
-                    "Failed to set rel_1to1_data: [" + col_name +
-                        "] from entities: [" + std::to_string(es.size()) + "]");
+  if (es.empty()) {
+    m_rel_1to1_container[col_name]->set_null();
+  } else {
+    m_rel_1to1_container[col_name]->set_entity(es[0]);
   }
-  m_rel_1to1_container[col_name]->set_entity(es[0]);
 }
 
 void neptune::entity::set_rel_1to1_data_null(const std::string &col_name) {

@@ -49,10 +49,9 @@ neptune::parser::get_select_set(const std::shared_ptr<entity> &e,
       res.insert(col_meta.name);
   }
   for (const auto &rel_1to1_meta : e->iter_rel_1to1_metas()) {
-    if (selector.m_select_cols.find(rel_1to1_meta.key) !=
-        selector.m_select_cols.end())
-      if (rel_1to1_meta.dir == left)
-        res.insert(rel_1to1_meta.key);
+    if (selector.m_select_rels.find(rel_1to1_meta.key) !=
+        selector.m_select_rels.end())
+      res.insert(rel_1to1_meta.key);
   }
   return res;
 }
@@ -118,11 +117,15 @@ std::string neptune::parser::load_1to1_relation(
 
 std::string neptune::parser::select_entities(const std::shared_ptr<entity> &e,
                                              const query_selector &selector) {
+  auto select_set = get_select_set(e, selector);
+
   std::set<std::string> col_names;
   for (const auto &col_meta : e->iter_col_metas()) {
     col_names.insert(col_meta.name);
   }
-  std::string res;
+  std::string res = "SELECT ";
+  res += select_columns(e, select_set);
+  res += " FROM `" + e->get_table_name() + "`";
 
   if (selector.m_where_clause_root != nullptr) {
     res += " WHERE ";
@@ -168,13 +171,31 @@ neptune::parser::select_columns(const std::shared_ptr<entity> &e,
   // construct sql string
   std::string res;
   bool is_first = true;
-  for (const auto &col_name : select_set) {
-    if (is_first)
-      is_first = false;
-    else
-      res += ", ";
-    res += "`" + col_name + "`";
+  for (const auto &col_meta : e->iter_col_metas()) {
+    if (select_set.find(col_meta.name) != select_set.end()) {
+      if (is_first) {
+        is_first = false;
+      } else {
+        res += ", ";
+      }
+      res += "`" + col_meta.name + "`";
+    }
+  }
+  for (const auto &rel_1to1_meta : e->iter_rel_1to1_metas()) {
+    if (select_set.find(rel_1to1_meta.key) != select_set.end()) {
+      if (rel_1to1_meta.dir == right)
+        continue;
+      if (is_first) {
+        is_first = false;
+      } else {
+        res += ", ";
+      }
+      res += "`" + rel_1to1_meta.key + "`";
+    }
   }
 
   return res;
 }
+
+std::vector<std::string>
+neptune::parser::update_relations(const std::shared_ptr<entity> &e) {}

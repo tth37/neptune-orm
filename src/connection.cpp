@@ -48,8 +48,6 @@ neptune::mariadb_connection::fetch(
         if (select_set.find(rel_1to1_meta.key) == select_set.end()) {
           continue;
         }
-        std::string foreign_uuid =
-            (std::string)res->getString(rel_1to1_meta.key);
         std::string load_1to1_relation_sql;
         if (rel_1to1_meta.dir == left) {
           load_1to1_relation_sql = parser::load_1to1_relation(
@@ -62,12 +60,7 @@ neptune::mariadb_connection::fetch(
         }
         auto foreign_entities = fetch(load_1to1_relation_sql, duplicate,
                                       parser::get_default_select_set(e));
-        if (foreign_entities.empty()) {
-          e->set_rel_1to1_data_null(rel_1to1_meta.key);
-        } else {
-          e->set_rel_1to1_data_from_entity(rel_1to1_meta.key,
-                                           foreign_entities[0]);
-        }
+        e->set_rel_1to1_data_from_entities(rel_1to1_meta.key, foreign_entities);
       }
       ret.push_back(e);
     }
